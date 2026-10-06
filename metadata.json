@@ -1,0 +1,6 @@
+{
+  "name": "TokoApps GAS - Sistem Pengelolaan Toko & Kasir Spreadsheet",
+  "description": "Aplikasi Pengelolaan Toko (POS & Inventory) modern berbasis Google Apps Script dan Google Spreadsheet dengan Dashboard, Produk, Penjualan, Pembelian, Laporan & Generator Kode GAS lengkap.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

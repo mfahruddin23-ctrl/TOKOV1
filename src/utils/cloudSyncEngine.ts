@@ -210,3 +210,30 @@ export async function pushCloudData(
     timestamp,
   };
 }
+
+/**
+ * Explicit function to push all application data directly to Supabase Realtime
+ */
+export async function syncDirectlyToSupabaseRealtime(
+  url: string,
+  key: string,
+  payload: SyncPayload
+): Promise<{ success: boolean; message: string; counts?: Record<string, number>; timestamp: string }> {
+  const timestamp = new Date().toLocaleTimeString('id-ID');
+  try {
+    const res = await pushToSupabase(url, key, payload);
+    return {
+      success: true,
+      message: res.message,
+      counts: res.counts,
+      timestamp,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      message: `Gagal sinkronisasi Supabase Realtime: ${msg}`,
+      timestamp,
+    };
+  }
+}

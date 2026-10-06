@@ -10,8 +10,9 @@ import {
   FileCode,
   ArrowUpRight,
   CheckCircle2,
+  Zap,
 } from 'lucide-react';
-import { Produk, Penjualan, Pembelian } from '../types';
+import { Produk, Penjualan, Pembelian, DatabaseConfig } from '../types';
 import { formatRupiah, formatTanggal } from '../utils/helpers';
 
 interface DashboardViewProps {
@@ -20,6 +21,9 @@ interface DashboardViewProps {
   purchases: Pembelian[];
   setActiveTab: (tab: string) => void;
   onOpenAddProduct: () => void;
+  dbConfig?: DatabaseConfig;
+  onOpenSyncModal?: () => void;
+  onSyncSupabaseRealtime?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -28,6 +32,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   purchases,
   setActiveTab,
   onOpenAddProduct,
+  dbConfig,
+  onOpenSyncModal,
+  onSyncSupabaseRealtime,
 }) => {
   // Calculations
   const totalProducts = products.length;
@@ -79,16 +86,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-2">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Database Spreadsheet Terhubung Aktif
-            </span>
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Database Spreadsheet Terhubung
+              </span>
+              {dbConfig?.supabaseUrl ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span>Supabase Realtime Live</span>
+                </span>
+              ) : null}
+            </div>
             <h2 className="text-2xl font-bold tracking-tight">Ringkasan Operasional Toko</h2>
             <p className="text-slate-300 text-sm mt-1 max-w-xl">
-              Kelola kasir, inventaris barang, pesanan pembelian, dan laporan laba rugi langsung tersinkronisasi ke Google Spreadsheet.
+              Kelola kasir, inventaris barang, pesanan pembelian, dan laporan laba rugi dengan sinkronisasi realtime Google Spreadsheet & Supabase.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
+          <div className="flex flex-wrap gap-2.5 items-center">
+            {onSyncSupabaseRealtime && (
+              <button
+                type="button"
+                onClick={onSyncSupabaseRealtime}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-blue-600/30 cursor-pointer"
+                title="Sinkronkan seluruh data aplikasi ke Supabase Realtime sekarang"
+              >
+                <Zap className="w-4 h-4 text-amber-300 animate-pulse" />
+                <span>Sync Supabase Realtime</span>
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('pos')}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-500/20"

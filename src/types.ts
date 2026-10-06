@@ -87,6 +87,8 @@ export interface DatabaseConfig {
   lastSyncTime: string | null;
   lastSyncStatus: 'idle' | 'syncing' | 'success' | 'error';
   syncErrorMessage?: string;
+  supabaseRealtimeEnabled?: boolean;
+  realtimeStatus?: 'connected' | 'connecting' | 'disconnected' | 'error';
 }
 
 export const defaultDatabaseConfig: DatabaseConfig = {
@@ -100,6 +102,8 @@ export const defaultDatabaseConfig: DatabaseConfig = {
   syncIntervalSec: 30,
   lastSyncTime: null,
   lastSyncStatus: 'idle',
+  supabaseRealtimeEnabled: true,
+  realtimeStatus: 'disconnected',
 };
 
 export interface StoreSettings {

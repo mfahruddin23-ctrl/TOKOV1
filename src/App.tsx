@@ -61,8 +61,10 @@ import {
   parseMultiDeviceUrlParams,
   pullCloudData,
   pushCloudData,
+  syncDirectlyToSupabaseRealtime,
 } from './utils/cloudSyncEngine';
 import { SyncPayload } from './utils/spreadsheetSync';
+import { subscribeToSupabaseRealtime } from './utils/supabaseSync';
 
 export default function App() {
   // Global Data State
@@ -209,6 +211,130 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [dbConfig]);
+
+  // Continuous Supabase Realtime WebSocket Listener (Multi-Device Live Sync)
+  useEffect(() => {
+    if (
+      !dbConfig.supabaseUrl ||
+      !dbConfig.supabaseAnonKey ||
+      dbConfig.activeProvider === 'local' ||
+      dbConfig.supabaseRealtimeEnabled === false
+    ) {
+      return;
+    }
+
+    const unsubscribe = subscribeToSupabaseRealtime(
+      dbConfig.supabaseUrl,
+      dbConfig.supabaseAnonKey,
+      {
+        onStatusChange: (status) => {
+          setDbConfig((prev) => ({ ...prev, realtimeStatus: status }));
+        },
+        onProductChange: (eventType, product) => {
+          if (eventType === 'INSERT') {
+            setProducts((prev) => {
+              if (prev.some((p) => p.id === product.id)) return prev;
+              return [product, ...prev];
+            });
+            showToast(`⚡ Realtime: Produk "${product.nama}" baru ditambahkan!`);
+          } else if (eventType === 'UPDATE') {
+            setProducts((prev) => prev.map((p) => (p.id === product.id ? product : p)));
+            showToast(`⚡ Realtime: Stok/harga "${product.nama}" diperbarui!`);
+          } else if (eventType === 'DELETE') {
+            setProducts((prev) => prev.filter((p) => p.id !== product.id));
+            showToast(`⚡ Realtime: Produk "${product.nama}" dihapus!`);
+          }
+        },
+        onSaleChange: (eventType, sale) => {
+          if (eventType === 'INSERT') {
+            setSales((prev) => {
+              if (prev.some((s) => s.id === sale.id)) return prev;
+              return [sale, ...prev];
+            });
+            showToast(`⚡ Realtime: Transaksi baru ${sale.id} masuk dari kasir lain!`);
+          }
+        },
+        onPurchaseChange: (eventType, purchase) => {
+          if (eventType === 'INSERT') {
+            setPurchases((prev) => {
+              if (prev.some((pb) => pb.id === purchase.id)) return prev;
+              return [purchase, ...prev];
+            });
+          }
+        },
+        onSupplierChange: (eventType, supplier) => {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            setSuppliers((prev) => [...prev.filter((s) => s.id !== supplier.id), supplier]);
+          } else if (eventType === 'DELETE') {
+            setSuppliers((prev) => prev.filter((s) => s.id !== supplier.id));
+          }
+        },
+        onCustomerChange: (eventType, customer) => {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            setCustomers((prev) => [...prev.filter((c) => c.id !== customer.id), customer]);
+          } else if (eventType === 'DELETE') {
+            setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
+          }
+        },
+        onUserChange: (eventType, user) => {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            setUsers((prev) => [...prev.filter((u) => u.username !== user.username), user]);
+          } else if (eventType === 'DELETE') {
+            setUsers((prev) => prev.filter((u) => u.username !== user.username));
+          }
+        },
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [
+    dbConfig.supabaseUrl,
+    dbConfig.supabaseAnonKey,
+    dbConfig.activeProvider,
+    dbConfig.supabaseRealtimeEnabled,
+  ]);
+
+  // Quick Sync all application data to Supabase Realtime
+  const handleSyncAllToSupabaseRealtime = async () => {
+    if (!dbConfig.supabaseUrl || !dbConfig.supabaseAnonKey) {
+      setIsSyncModalOpen(true);
+      showToast('Masukkan URL & Anon Key Supabase terlebih dahulu.');
+      return;
+    }
+
+    showToast('⚡ Menyinkronkan seluruh data aplikasi ke Supabase Realtime...');
+    const res = await syncDirectlyToSupabaseRealtime(
+      dbConfig.supabaseUrl,
+      dbConfig.supabaseAnonKey,
+      {
+        products,
+        sales,
+        purchases,
+        suppliers,
+        customers,
+        users,
+        settings,
+      }
+    );
+
+    if (res.success) {
+      const updatedConfig: DatabaseConfig = {
+        ...dbConfig,
+        activeProvider: dbConfig.activeProvider === 'local' ? 'supabase' : dbConfig.activeProvider,
+        supabaseRealtimeEnabled: true,
+        realtimeStatus: 'connected',
+        lastSyncTime: res.timestamp,
+        lastSyncStatus: 'success',
+      };
+      setDbConfig(updatedConfig);
+      saveStoredDatabaseConfig(updatedConfig);
+      showToast(res.message);
+    } else {
+      showToast(`Gagal: ${res.message}`);
+    }
+  };
 
   // Push helper on mutations
   const triggerAutoPush = (overridePayload?: Partial<SyncPayload>) => {
@@ -505,6 +631,7 @@ export default function App() {
         dbConfig={dbConfig}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
+        onSyncSupabaseRealtime={handleSyncAllToSupabaseRealtime}
       />
 
       {/* Main Body */}
@@ -526,6 +653,9 @@ export default function App() {
               purchases={purchases}
               setActiveTab={setActiveTab}
               onOpenAddProduct={() => setActiveTab('produk')}
+              dbConfig={dbConfig}
+              onOpenSyncModal={() => setIsSyncModalOpen(true)}
+              onSyncSupabaseRealtime={handleSyncAllToSupabaseRealtime}
             />
           )}
 

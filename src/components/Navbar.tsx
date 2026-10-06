@@ -23,6 +23,7 @@ interface NavbarProps {
   dbConfig: DatabaseConfig;
   onOpenSyncModal: () => void;
   onOpenMobileDrawer?: () => void;
+  onSyncSupabaseRealtime?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   dbConfig,
   onOpenSyncModal,
   onOpenMobileDrawer,
+  onSyncSupabaseRealtime,
 }) => {
   // Provider badge configuration
   const getProviderBadge = () => {
@@ -124,6 +126,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <BadgeIcon className="w-3.5 h-3.5" />
               <span className="hidden md:inline">{badge.label}</span>
               <span className="md:hidden text-[11px]">{badge.mobileLabel}</span>
+            </button>
+
+            {/* Quick Supabase Realtime Sync Button */}
+            <button
+              type="button"
+              onClick={onSyncSupabaseRealtime || onOpenSyncModal}
+              title="Sinkronkan Isi Data ke Supabase Realtime"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition border border-blue-400/40 bg-blue-600 hover:bg-blue-500 text-white shadow-xs cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <span className="hidden sm:inline">Sync Supabase Realtime</span>
+              <span className="sm:hidden text-[11px]">Sync Live</span>
             </button>
 
             {/* Quick Button to APK / Android */}

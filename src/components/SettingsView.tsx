@@ -315,6 +315,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="w-full p-2.5 border border-slate-300 rounded-xl font-mono text-xs"
               />
             </div>
+
+            {/* Quick Action Button for Supabase Realtime */}
+            {onOpenSyncModal && (
+              <div className="md:col-span-2 pt-2">
+                <button
+                  type="button"
+                  onClick={onOpenSyncModal}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 text-amber-300 animate-pulse" />
+                  <span>Buka Hub Sinkronisasi & Unggah Data ke Supabase Realtime</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

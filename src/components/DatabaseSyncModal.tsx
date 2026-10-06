@@ -40,6 +40,7 @@ import {
   generateMultiDeviceShareUrl,
   pullCloudData,
   pushCloudData,
+  syncDirectlyToSupabaseRealtime,
 } from '../utils/cloudSyncEngine';
 
 interface DatabaseSyncModalProps {
@@ -82,6 +83,7 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
   // Action states
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [copiedShareUrl, setCopiedShareUrl] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
@@ -157,6 +159,64 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
       status: res.success ? 'success' : 'error',
       message: res.message,
     });
+  };
+
+  // Sync entire application data to Supabase Realtime
+  const handleSyncAllToSupabaseRealtime = async () => {
+    if (!form.supabaseUrl || !form.supabaseAnonKey) {
+      setTestResult({
+        status: 'error',
+        message: 'Masukkan URL Project Supabase dan Anon Key publik terlebih dahulu.',
+      });
+      return;
+    }
+
+    setIsSyncingSupabase(true);
+    setTestResult({
+      status: 'testing',
+      message: 'Mengirim dan menyinkronkan seluruh data aplikasi ke Supabase Realtime...',
+    });
+
+    try {
+      const res = await syncDirectlyToSupabaseRealtime(
+        form.supabaseUrl,
+        form.supabaseAnonKey,
+        localData
+      );
+
+      if (res.success) {
+        const updatedConfig: DatabaseConfig = {
+          ...form,
+          activeProvider: form.activeProvider === 'local' ? 'supabase' : form.activeProvider,
+          supabaseRealtimeEnabled: true,
+          realtimeStatus: 'connected',
+          lastSyncTime: res.timestamp,
+          lastSyncStatus: 'success',
+        };
+        setForm(updatedConfig);
+        onSaveConfig(updatedConfig);
+        setTestResult({
+          status: 'success',
+          message: `⚡ ${res.message}`,
+        });
+        onNotify(`⚡ Seluruh data berhasil disinkronkan ke Supabase Realtime!`);
+      } else {
+        setTestResult({
+          status: 'error',
+          message: res.message,
+        });
+        onNotify(res.message);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setTestResult({
+        status: 'error',
+        message: `Gagal: ${msg}`,
+      });
+      onNotify(`Gagal: ${msg}`);
+    } finally {
+      setIsSyncingSupabase(false);
+    }
   };
 
   // Pull latest data
@@ -471,13 +531,75 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'supabase' && (
             <div className="space-y-4">
+              {/* Hero: Sync all data to Supabase Realtime */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md space-y-3 border border-blue-500/30">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <h4 className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span>Sinkronkan Seluruh Data ke Supabase Realtime</span>
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 self-start sm:self-auto flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>Live WebSocket Realtime</span>
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Unggah seluruh isi data lokal toko ({localData.products.length} produk, {localData.sales.length} penjualan, {localData.purchases.length} pembelian, {localData.suppliers.length} supplier, {localData.customers.length} pelanggan) ke database Supabase agar langsung tersinkronisasi realtime multi-perangkat.
+                </p>
+
+                {/* Counts Grid */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center text-[10px] font-mono">
+                  <div className="bg-white/10 rounded-lg p-1.5 border border-white/5">
+                    <span className="block font-bold text-emerald-300 text-xs">{localData.products.length}</span>
+                    <span className="text-slate-400">Produk</span>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-1.5 border border-white/5">
+                    <span className="block font-bold text-blue-300 text-xs">{localData.sales.length}</span>
+                    <span className="text-slate-400">Penjualan</span>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-1.5 border border-white/5">
+                    <span className="block font-bold text-indigo-300 text-xs">{localData.purchases.length}</span>
+                    <span className="text-slate-400">Pembelian</span>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-1.5 border border-white/5">
+                    <span className="block font-bold text-amber-300 text-xs">{localData.suppliers.length}</span>
+                    <span className="text-slate-400">Supplier</span>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-1.5 border border-white/5">
+                    <span className="block font-bold text-purple-300 text-xs">{localData.customers.length}</span>
+                    <span className="text-slate-400">Pelanggan</span>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-1.5 border border-white/5">
+                    <span className="block font-bold text-pink-300 text-xs">{localData.users.length}</span>
+                    <span className="text-slate-400">User</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSyncingSupabase}
+                  onClick={handleSyncAllToSupabaseRealtime}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-xl font-extrabold text-xs shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                >
+                  <Zap className={`w-4 h-4 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isSyncingSupabase
+                      ? 'Sedang Mengunggah & Menyinkronkan ke Supabase Realtime...'
+                      : '⚡ SINKRONKAN SELURUH DATA KE SUPABASE REALTIME SEKARANG'}
+                  </span>
+                </button>
+              </div>
+
               <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 text-xs text-blue-950 flex items-start gap-3">
                 <Zap className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <span className="font-bold">Database Online Supabase (PostgreSQL Cloud):</span>
+                  <span className="font-bold">Konfigurasi Database Online Supabase:</span>
                   <p className="text-blue-900 leading-relaxed">
-                    Menghubungkan aplikasi ke Supabase memungkinkan sinkronisasi kilat antar perangkat HP/Tablet/Laptop
-                    secara simultan tanpa batasan kuota Google.
+                    Setelah mengisi URL dan Anon Key, klik tombol di atas untuk menyinkronkan seluruh data. Perubahan di satu HP/perangkat akan otomatis langsung ter-update di perangkat lain secara instan (*Live Realtime*).
                   </p>
                 </div>
               </div>
@@ -690,6 +812,21 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
                     <span>{isPushing ? 'Mengunggah Data...' : 'Unggah Data Saat Ini ke Cloud (Push)'}</span>
                   </button>
                 </div>
+
+                {/* Direct Supabase Realtime Sync Button */}
+                <button
+                  type="button"
+                  disabled={isSyncingSupabase}
+                  onClick={handleSyncAllToSupabaseRealtime}
+                  className="w-full p-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-blue-600/20 disabled:opacity-50 mt-2"
+                >
+                  <Zap className={`w-4 h-4 text-amber-300 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isSyncingSupabase
+                      ? 'Menyinkronkan ke Supabase Realtime...'
+                      : '⚡ Sinkronkan Seluruh Data ke Database Supabase Realtime'}
+                  </span>
+                </button>
               </div>
 
               {/* Status info */}

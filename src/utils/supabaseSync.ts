@@ -1,9 +1,10 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import { Produk, Penjualan, Pembelian, Supplier, Pelanggan, Pengguna } from '../types';
 import { SyncPayload } from './spreadsheetSync';
 
 let supabaseInstance: SupabaseClient | null = null;
 let currentConfig = { url: '', key: '' };
+let activeRealtimeChannel: RealtimeChannel | null = null;
 
 export function getSupabaseClient(url: string, key: string): SupabaseClient | null {
   if (!url || !key) return null;
@@ -25,6 +26,87 @@ export function getSupabaseClient(url: string, key: string): SupabaseClient | nu
 }
 
 /**
+ * Format helpers for Realtime rows
+ */
+export function formatProdukFromRow(row: any): Produk {
+  return {
+    id: String(row.id),
+    barcode: String(row.barcode),
+    nama: String(row.nama),
+    kategori: row.kategori || 'Umum',
+    satuan: row.satuan || 'Pcs',
+    hargaBeli: Number(row.harga_beli ?? row.hargaBeli ?? 0),
+    hargaJual: Number(row.harga_jual ?? row.hargaJual ?? 0),
+    stok: Number(row.stok ?? 0),
+    minStok: Number(row.min_stok ?? row.minStok ?? 5),
+    supplier: row.supplier || '',
+    status: (row.status || 'Aktif') as 'Aktif' | 'Nonaktif',
+    foto: row.foto || undefined,
+  };
+}
+
+export function formatPenjualanFromRow(row: any): Penjualan {
+  return {
+    id: String(row.id),
+    tanggal: row.tanggal,
+    items: typeof row.items === 'string' ? JSON.parse(row.items) : row.items || [],
+    totalQty: Number(row.total_qty ?? row.totalQty ?? 0),
+    subtotal: Number(row.subtotal ?? 0),
+    diskonTotal: Number(row.diskon_total ?? row.diskonTotal ?? 0),
+    pajak: Number(row.pajak ?? 0),
+    totalBayar: Number(row.total_bayar ?? row.totalBayar ?? 0),
+    jumlahUang: Number(row.jumlah_uang ?? row.jumlahUang ?? 0),
+    kembalian: Number(row.kembalian ?? 0),
+    kasir: row.kasir || 'Kasir',
+    pelanggan: row.pelanggan || '',
+    metodePembayaran: (row.metode_pembayaran || row.metodePembayaran || 'Tunai') as 'Tunai' | 'QRIS' | 'Transfer',
+  };
+}
+
+export function formatPembelianFromRow(row: any): Pembelian {
+  return {
+    id: String(row.id),
+    tanggal: row.tanggal,
+    supplier: row.supplier,
+    barcode: row.barcode,
+    namaProduk: row.nama_produk || row.namaProduk,
+    qty: Number(row.qty ?? 0),
+    hargaBeli: Number(row.harga_beli ?? row.hargaBeli ?? 0),
+    total: Number(row.total ?? 0),
+    catatan: row.catatan || '',
+  };
+}
+
+export function formatSupplierFromRow(row: any): Supplier {
+  return {
+    id: String(row.id),
+    nama: row.nama,
+    alamat: row.alamat || '',
+    telepon: row.telepon || '',
+    email: row.email || '',
+  };
+}
+
+export function formatPelangganFromRow(row: any): Pelanggan {
+  return {
+    id: String(row.id),
+    nama: row.nama,
+    telepon: row.telepon || '',
+    alamat: row.alamat || '',
+    poin: Number(row.poin || 0),
+  };
+}
+
+export function formatPenggunaFromRow(row: any): Pengguna {
+  return {
+    username: row.username,
+    nama: row.nama,
+    password: row.password || '',
+    role: (row.role || 'Kasir') as 'Admin' | 'Kasir',
+  };
+}
+
+/**
  * Test connectivity with Supabase project
  */
 export async function testSupabaseConnection(url: string, key: string): Promise<{ success: boolean; message: string }> {
@@ -34,21 +116,19 @@ export async function testSupabaseConnection(url: string, key: string): Promise<
   }
 
   try {
-    // Try pinging or querying any table (e.g. produk or auth)
     const { error } = await client.from('produk').select('id').limit(1);
 
     if (error) {
-      // If table doesn't exist yet, it still proves credentials and network connection to Supabase are valid!
       if (error.code === '42P01') {
         return {
           success: true,
-          message: 'Berhasil terhubung ke Supabase! (Catatan: Tabel produk belum dibuat, silakan jalankan SQL Schema).',
+          message: 'Berhasil terhubung ke server Supabase! (Catatan: Tabel produk belum dibuat, silakan jalankan SQL Schema).',
         };
       }
       return { success: false, message: `Koneksi Supabase gagal: ${error.message}` };
     }
 
-    return { success: true, message: 'Koneksi ke database Supabase berhasil & tabel terdeteksi!' };
+    return { success: true, message: 'Koneksi ke database Supabase Realtime berhasil & tabel terdeteksi!' };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { success: false, message: `Gagal menghubungi server Supabase: ${msg}` };
@@ -74,81 +154,27 @@ export async function pullFromSupabase(url: string, key: string): Promise<Partia
   const payload: Partial<SyncPayload> = {};
 
   if (resProduk.data) {
-    payload.products = resProduk.data.map((row: any) => ({
-      id: row.id,
-      barcode: row.barcode,
-      nama: row.nama,
-      kategori: row.kategori,
-      satuan: row.satuan,
-      hargaBeli: Number(row.harga_beli ?? row.hargaBeli ?? 0),
-      hargaJual: Number(row.harga_jual ?? row.hargaJual ?? 0),
-      stok: Number(row.stok ?? 0),
-      minStok: Number(row.min_stok ?? row.minStok ?? 5),
-      supplier: row.supplier || '',
-      status: row.status || 'Aktif',
-      foto: row.foto || undefined,
-    }));
+    payload.products = resProduk.data.map(formatProdukFromRow);
   }
 
   if (resPenjualan.data) {
-    payload.sales = resPenjualan.data.map((row: any) => ({
-      id: row.id,
-      tanggal: row.tanggal,
-      items: typeof row.items === 'string' ? JSON.parse(row.items) : row.items || [],
-      totalQty: Number(row.total_qty ?? row.totalQty ?? 0),
-      subtotal: Number(row.subtotal ?? 0),
-      diskonTotal: Number(row.diskon_total ?? row.diskonTotal ?? 0),
-      pajak: Number(row.pajak ?? 0),
-      totalBayar: Number(row.total_bayar ?? row.totalBayar ?? 0),
-      jumlahUang: Number(row.jumlah_uang ?? row.jumlahUang ?? 0),
-      kembalian: Number(row.kembalian ?? 0),
-      kasir: row.kasir || 'Kasir',
-      pelanggan: row.pelanggan || '',
-      metodePembayaran: row.metode_pembayaran || row.metodePembayaran || 'Tunai',
-    }));
+    payload.sales = resPenjualan.data.map(formatPenjualanFromRow);
   }
 
   if (resPembelian.data) {
-    payload.purchases = resPembelian.data.map((row: any) => ({
-      id: row.id,
-      tanggal: row.tanggal,
-      supplier: row.supplier,
-      barcode: row.barcode,
-      namaProduk: row.nama_produk || row.namaProduk,
-      qty: Number(row.qty ?? 0),
-      hargaBeli: Number(row.harga_beli ?? row.hargaBeli ?? 0),
-      total: Number(row.total ?? 0),
-      catatan: row.catatan || '',
-    }));
+    payload.purchases = resPembelian.data.map(formatPembelianFromRow);
   }
 
   if (resSupplier.data) {
-    payload.suppliers = resSupplier.data.map((row: any) => ({
-      id: row.id,
-      nama: row.nama,
-      alamat: row.alamat || '',
-      telepon: row.telepon || '',
-      email: row.email || '',
-    }));
+    payload.suppliers = resSupplier.data.map(formatSupplierFromRow);
   }
 
   if (resPelanggan.data) {
-    payload.customers = resPelanggan.data.map((row: any) => ({
-      id: row.id,
-      nama: row.nama,
-      telepon: row.telepon || '',
-      alamat: row.alamat || '',
-      poin: Number(row.poin || 0),
-    }));
+    payload.customers = resPelanggan.data.map(formatPelangganFromRow);
   }
 
   if (resPengguna.data) {
-    payload.users = resPengguna.data.map((row: any) => ({
-      username: row.username,
-      nama: row.nama,
-      password: row.password || '',
-      role: row.role || 'Kasir',
-    }));
+    payload.users = resPengguna.data.map(formatPenggunaFromRow);
   }
 
   return payload;
@@ -157,7 +183,11 @@ export async function pullFromSupabase(url: string, key: string): Promise<Partia
 /**
  * Push all local data into Supabase tables (Upsert)
  */
-export async function pushToSupabase(url: string, key: string, data: SyncPayload): Promise<{ success: boolean; message: string }> {
+export async function pushToSupabase(
+  url: string,
+  key: string,
+  data: SyncPayload
+): Promise<{ success: boolean; message: string; counts: Record<string, number> }> {
   const client = getSupabaseClient(url, key);
   if (!client) throw new Error('Supabase client belum terkonfigurasi');
 
@@ -233,33 +263,173 @@ export async function pushToSupabase(url: string, key: string, data: SyncPayload
     role: u.role,
   }));
 
-  // Upsert concurrently
-  const results = await Promise.allSettled([
-    produkRows.length > 0 ? client.from('produk').upsert(produkRows, { onConflict: 'id' }) : Promise.resolve(),
-    penjualanRows.length > 0 ? client.from('penjualan').upsert(penjualanRows, { onConflict: 'id' }) : Promise.resolve(),
-    pembelianRows.length > 0 ? client.from('pembelian').upsert(pembelianRows, { onConflict: 'id' }) : Promise.resolve(),
-    supplierRows.length > 0 ? client.from('supplier').upsert(supplierRows, { onConflict: 'id' }) : Promise.resolve(),
-    pelangganRows.length > 0 ? client.from('pelanggan').upsert(pelangganRows, { onConflict: 'id' }) : Promise.resolve(),
-    penggunaRows.length > 0 ? client.from('pengguna').upsert(penggunaRows, { onConflict: 'username' }) : Promise.resolve(),
+  // Upsert each table and capture exact response
+  const [resProd, resPenj, resPemb, resSup, resPel, resPeng] = await Promise.all([
+    produkRows.length > 0 ? client.from('produk').upsert(produkRows, { onConflict: 'id' }) : { error: null },
+    penjualanRows.length > 0 ? client.from('penjualan').upsert(penjualanRows, { onConflict: 'id' }) : { error: null },
+    pembelianRows.length > 0 ? client.from('pembelian').upsert(pembelianRows, { onConflict: 'id' }) : { error: null },
+    supplierRows.length > 0 ? client.from('supplier').upsert(supplierRows, { onConflict: 'id' }) : { error: null },
+    pelangganRows.length > 0 ? client.from('pelanggan').upsert(pelangganRows, { onConflict: 'id' }) : { error: null },
+    penggunaRows.length > 0 ? client.from('pengguna').upsert(penggunaRows, { onConflict: 'username' }) : { error: null },
   ]);
 
-  const errors = results
-    .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-    .map((r) => r.reason?.message || 'Error');
+  const errors: string[] = [];
+  if (resProd?.error) errors.push(`Produk: ${resProd.error.message}`);
+  if (resPenj?.error) errors.push(`Penjualan: ${resPenj.error.message}`);
+  if (resPemb?.error) errors.push(`Pembelian: ${resPemb.error.message}`);
+  if (resSup?.error) errors.push(`Supplier: ${resSup.error.message}`);
+  if (resPel?.error) errors.push(`Pelanggan: ${resPel.error.message}`);
+  if (resPeng?.error) errors.push(`Pengguna: ${resPeng.error.message}`);
 
   if (errors.length > 0) {
-    throw new Error(`Sebagian data gagal disimpan ke Supabase: ${errors.join(', ')}`);
+    throw new Error(`Sebagian tabel gagal disinkronkan ke Supabase: ${errors.join(', ')}`);
   }
 
-  return { success: true, message: 'Seluruh data berhasil disinkronkan ke Supabase!' };
+  const counts = {
+    products: produkRows.length,
+    sales: penjualanRows.length,
+    purchases: pembelianRows.length,
+    suppliers: supplierRows.length,
+    customers: pelangganRows.length,
+    users: penggunaRows.length,
+  };
+
+  return {
+    success: true,
+    message: `Berhasil sinkron ke Supabase Realtime! (${produkRows.length} produk, ${penjualanRows.length} transaksi, ${pembelianRows.length} pembelian)`,
+    counts,
+  };
 }
 
 /**
- * Generate 1-click SQL Schema for Supabase SQL Editor
+ * Realtime Event Callbacks interface
+ */
+export interface SupabaseRealtimeCallbacks {
+  onProductChange?: (eventType: 'INSERT' | 'UPDATE' | 'DELETE', product: Produk) => void;
+  onSaleChange?: (eventType: 'INSERT' | 'UPDATE' | 'DELETE', sale: Penjualan) => void;
+  onPurchaseChange?: (eventType: 'INSERT' | 'UPDATE' | 'DELETE', purchase: Pembelian) => void;
+  onSupplierChange?: (eventType: 'INSERT' | 'UPDATE' | 'DELETE', supplier: Supplier) => void;
+  onCustomerChange?: (eventType: 'INSERT' | 'UPDATE' | 'DELETE', customer: Pelanggan) => void;
+  onUserChange?: (eventType: 'INSERT' | 'UPDATE' | 'DELETE', user: Pengguna) => void;
+  onStatusChange?: (status: 'connected' | 'connecting' | 'disconnected' | 'error') => void;
+}
+
+/**
+ * Setup continuous 2-way Realtime Listener via Supabase WebSocket
+ */
+export function subscribeToSupabaseRealtime(
+  url: string,
+  key: string,
+  callbacks: SupabaseRealtimeCallbacks
+): () => void {
+  const client = getSupabaseClient(url, key);
+  if (!client) {
+    callbacks.onStatusChange?.('disconnected');
+    return () => {};
+  }
+
+  // Cleanup existing channel if any
+  if (activeRealtimeChannel) {
+    client.removeChannel(activeRealtimeChannel);
+    activeRealtimeChannel = null;
+  }
+
+  callbacks.onStatusChange?.('connecting');
+
+  try {
+    const channel = client
+      .channel('tokoapp-realtime-hub')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'produk' },
+        (payload) => {
+          const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+          if (row && callbacks.onProductChange) {
+            callbacks.onProductChange(payload.eventType as any, formatProdukFromRow(row));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'penjualan' },
+        (payload) => {
+          const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+          if (row && callbacks.onSaleChange) {
+            callbacks.onSaleChange(payload.eventType as any, formatPenjualanFromRow(row));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pembelian' },
+        (payload) => {
+          const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+          if (row && callbacks.onPurchaseChange) {
+            callbacks.onPurchaseChange(payload.eventType as any, formatPembelianFromRow(row));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'supplier' },
+        (payload) => {
+          const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+          if (row && callbacks.onSupplierChange) {
+            callbacks.onSupplierChange(payload.eventType as any, formatSupplierFromRow(row));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pelanggan' },
+        (payload) => {
+          const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+          if (row && callbacks.onCustomerChange) {
+            callbacks.onCustomerChange(payload.eventType as any, formatPelangganFromRow(row));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pengguna' },
+        (payload) => {
+          const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+          if (row && callbacks.onUserChange) {
+            callbacks.onUserChange(payload.eventType as any, formatPenggunaFromRow(row));
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          callbacks.onStatusChange?.('connected');
+        } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          callbacks.onStatusChange?.('error');
+        } else if (status === 'CLOSED') {
+          callbacks.onStatusChange?.('disconnected');
+        }
+      });
+
+    activeRealtimeChannel = channel;
+
+    return () => {
+      if (client && channel) {
+        client.removeChannel(channel);
+      }
+      activeRealtimeChannel = null;
+    };
+  } catch (err) {
+    console.error('Failed to subscribe to Supabase Realtime:', err);
+    callbacks.onStatusChange?.('error');
+    return () => {};
+  }
+}
+
+/**
+ * Generate 1-click SQL Schema for Supabase SQL Editor with Full Realtime Publication
  */
 export function generateSupabaseSqlSchema(): string {
   return `-- ====================================================================
--- SKRIP SQL DATABASE SUPABASE UNTUK APLIKASI TOKOAPPS
+-- SKRIP SQL DATABASE SUPABASE REALTIME UNTUK APLIKASI TOKOAPPS
 -- Jalankan skrip ini 1 KALI di Supabase Dashboard -> SQL Editor -> Run
 -- ====================================================================
 
@@ -341,12 +511,33 @@ CREATE TABLE IF NOT EXISTS pengguna (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Izinkan Akses Publik / Anon Key (Disable RLS untuk kemudahan akses POS)
+-- Nonaktifkan Row Level Security (RLS) untuk kemudahan akses Anon Key
 ALTER TABLE produk DISABLE ROW LEVEL SECURITY;
 ALTER TABLE penjualan DISABLE ROW LEVEL SECURITY;
 ALTER TABLE pembelian DISABLE ROW LEVEL SECURITY;
 ALTER TABLE supplier DISABLE ROW LEVEL SECURITY;
 ALTER TABLE pelanggan DISABLE ROW LEVEL SECURITY;
 ALTER TABLE pengguna DISABLE ROW LEVEL SECURITY;
+
+-- Set Replica Identity Full untuk Realtime Broadcast
+ALTER TABLE produk REPLICA IDENTITY FULL;
+ALTER TABLE penjualan REPLICA IDENTITY FULL;
+ALTER TABLE pembelian REPLICA IDENTITY FULL;
+ALTER TABLE supplier REPLICA IDENTITY FULL;
+ALTER TABLE pelanggan REPLICA IDENTITY FULL;
+ALTER TABLE pengguna REPLICA IDENTITY FULL;
+
+-- ====================================================================
+-- 7. AKTIFKAN REPLIKASI REALTIME SUPABASE (WEBSOCKET LIVE MULTI-DEVICE)
+-- ====================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'produk'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE produk, penjualan, pembelian, supplier, pelanggan, pengguna;
+  END IF;
+END $$;
 `;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, LogOut, Code, User, Store as StoreIcon, ShieldAlert } from 'lucide-react';
+import { Store, LogOut, Code, User, Store as StoreIcon, ShieldAlert, Smartphone } from 'lucide-react';
 import { Pengguna, StoreSettings } from '../types';
 
 interface NavbarProps {
@@ -40,19 +40,33 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Quick Button to APK / Android */}
+            <button
+              onClick={() => setActiveTab('apk')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                activeTab === 'apk'
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
+                  : 'bg-slate-800 text-emerald-300 border-emerald-500/30 hover:bg-slate-700'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Pasang APK</span>
+              <span className="sm:hidden">APK</span>
+            </button>
+
             {/* Quick Button to GAS Code Studio */}
             <button
               onClick={() => setActiveTab('gas')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                 activeTab === 'gas'
                   ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
                   : 'bg-slate-800 text-amber-300 border-amber-500/30 hover:bg-slate-700'
               }`}
             >
-              <Code className="w-4 h-4" />
-              <span className="hidden md:inline">Kode Google Apps Script</span>
-              <span className="md:hidden">Kode GAS</span>
+              <Code className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Kode Apps Script</span>
+              <span className="md:hidden">GAS</span>
             </button>
 
             {/* User Profile / Status */}

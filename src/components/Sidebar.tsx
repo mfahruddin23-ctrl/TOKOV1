@@ -11,6 +11,8 @@ import {
   Boxes,
   Code2,
   FileSpreadsheet,
+  UserCog,
+  Smartphone,
 } from 'lucide-react';
 import { Pengguna } from '../types';
 
@@ -81,6 +83,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Laporan Keuangan',
       icon: BarChart3,
       adminOnly: true,
+    },
+    {
+      id: 'users',
+      label: 'Manajemen Pengguna',
+      icon: UserCog,
+      badge: 'User',
+      badgeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      adminOnly: true,
+    },
+    {
+      id: 'apk',
+      label: 'Aplikasi HP & APK',
+      icon: Smartphone,
+      badge: 'Android',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold',
+      adminOnly: false,
     },
     {
       id: 'gas',

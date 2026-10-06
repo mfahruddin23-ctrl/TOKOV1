@@ -17,6 +17,8 @@ import { LaporanView } from './components/LaporanView';
 import { GasCodeStudioView } from './components/GasCodeStudioView';
 import { SettingsView } from './components/SettingsView';
 import { LoginModal } from './components/LoginModal';
+import { UserManagementView } from './components/UserManagementView';
+import { ApkBuilderView } from './components/ApkBuilderView';
 
 import {
   Produk,
@@ -86,6 +88,10 @@ export default function App() {
   useEffect(() => {
     saveStoredCustomers(customers);
   }, [customers]);
+
+  useEffect(() => {
+    saveStoredUsers(users);
+  }, [users]);
 
   useEffect(() => {
     saveStoredSettings(settings);
@@ -194,6 +200,37 @@ export default function App() {
   const handleDeleteCustomer = (id: string) => {
     setCustomers((prev) => prev.filter((item) => item.id !== id));
     showToast('Pelanggan berhasil dihapus!');
+  };
+
+  // User Management CRUD handlers
+  const handleAddUser = (newUser: Pengguna) => {
+    setUsers((prev) => [...prev, newUser]);
+    showToast(`Pengguna "${newUser.nama}" (${newUser.role}) berhasil ditambahkan!`);
+  };
+
+  const handleUpdateUser = (updatedUser: Pengguna) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.username === updatedUser.username ? updatedUser : u))
+    );
+    if (currentUser?.username === updatedUser.username) {
+      setCurrentUser((prev) => (prev ? { ...prev, nama: updatedUser.nama, role: updatedUser.role } : null));
+    }
+    showToast(`Profil pengguna "${updatedUser.nama}" berhasil diperbarui!`);
+  };
+
+  const handleChangePassword = (username: string, newPass: string) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.username === username ? { ...u, password: newPass } : u))
+    );
+    if (currentUser?.username === username) {
+      setCurrentUser((prev) => (prev ? { ...prev, password: newPass } : null));
+    }
+    showToast(`Password untuk "${username}" berhasil diperbarui!`);
+  };
+
+  const handleDeleteUser = (username: string) => {
+    setUsers((prev) => prev.filter((u) => u.username !== username));
+    showToast(`Pengguna "${username}" telah dihapus.`);
   };
 
   // Settings & Backups
@@ -374,6 +411,19 @@ export default function App() {
               currentUser={currentUser}
             />
           )}
+
+          {activeTab === 'users' && (
+            <UserManagementView
+              users={users}
+              currentUser={currentUser}
+              onAddUser={handleAddUser}
+              onUpdateUser={handleUpdateUser}
+              onChangePassword={handleChangePassword}
+              onDeleteUser={handleDeleteUser}
+            />
+          )}
+
+          {activeTab === 'apk' && <ApkBuilderView settings={settings} />}
 
           {activeTab === 'gas' && <GasCodeStudioView />}
 

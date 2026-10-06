@@ -225,6 +225,129 @@ function logoutUser() {
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * ====================================================================
+ * MANAJEMEN PENGGUNA (CRUD PENGGUNA & HAK AKSES)
+ * ====================================================================
+ */
+
+/**
+ * Mengambil daftar seluruh pengguna dari Sheet Pengguna
+ */
+function getUsers() {
+  try {
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_PENGGUNA);
+    if (!sheet) return [];
+    var data = sheet.getDataRange().getValues();
+    var users = [];
+    for (var i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      users.push({
+        username: String(data[i][0]),
+        nama: String(data[i][2]),
+        role: String(data[i][3])
+      });
+    }
+    return users;
+  } catch (err) {
+    throw new Error("Gagal mengambil data pengguna: " + err.message);
+  }
+}
+
+/**
+ * Tambah Pengguna Baru
+ */
+function addUser(user) {
+  try {
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_PENGGUNA);
+    var u = String(user.username).trim().toLowerCase();
+    
+    // Cek duplikat username
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]).toLowerCase() === u) {
+        return { success: false, message: "Username sudah digunakan!" };
+      }
+    }
+
+    sheet.appendRow([u, String(user.password).trim(), user.nama, user.role || 'Kasir']);
+    return { success: true, message: "Pengguna berhasil ditambahkan!" };
+  } catch (err) {
+    return { success: false, message: "Gagal menambah pengguna: " + err.message };
+  }
+}
+
+/**
+ * Edit Nama & Role Hak Akses Pengguna
+ */
+function updateUser(user) {
+  try {
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_PENGGUNA);
+    var u = String(user.username).trim().toLowerCase();
+    var data = sheet.getDataRange().getValues();
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]).toLowerCase() === u) {
+        var rowNumber = i + 1;
+        sheet.getRange(rowNumber, 3).setValue(user.nama); // Kolom Nama
+        sheet.getRange(rowNumber, 4).setValue(user.role); // Kolom Role
+        return { success: true, message: "Profil pengguna berhasil diperbarui!" };
+      }
+    }
+    return { success: false, message: "Pengguna tidak ditemukan!" };
+  } catch (err) {
+    return { success: false, message: "Gagal memperbarui pengguna: " + err.message };
+  }
+}
+
+/**
+ * Ganti Password Pengguna
+ */
+function changePassword(username, newPassword) {
+  try {
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_PENGGUNA);
+    var u = String(username).trim().toLowerCase();
+    var data = sheet.getDataRange().getValues();
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]).toLowerCase() === u) {
+        sheet.getRange(i + 1, 2).setValue(String(newPassword).trim()); // Kolom Password
+        return { success: true, message: "Password berhasil diperbarui!" };
+      }
+    }
+    return { success: false, message: "Pengguna tidak ditemukan!" };
+  } catch (err) {
+    return { success: false, message: "Gagal mengubah password: " + err.message };
+  }
+}
+
+/**
+ * Hapus Pengguna
+ */
+function deleteUser(username) {
+  try {
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_PENGGUNA);
+    var u = String(username).trim().toLowerCase();
+    var data = sheet.getDataRange().getValues();
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]).toLowerCase() === u) {
+        sheet.deleteRow(i + 1);
+        return { success: true, message: "Pengguna berhasil dihapus!" };
+      }
+    }
+    return { success: false, message: "Pengguna tidak ditemukan!" };
+  } catch (err) {
+    return { success: false, message: "Gagal menghapus pengguna: " + err.message };
+  }
+}
+
 `,
   },
   {

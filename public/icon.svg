@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#grad)" />
+  <!-- Store Canopy & Shopping Cart -->
+  <g transform="translate(96, 96)" filter="url(#shadow)">
+    <!-- Canopy -->
+    <path d="M40 90 L280 90 L300 130 L20 130 Z" fill="#fbbf24" />
+    <path d="M40 90 L88 90 L80 130 L30 130 Z" fill="#f59e0b" />
+    <path d="M136 90 L184 90 L184 130 L136 130 Z" fill="#f59e0b" />
+    <path d="M232 90 L280 90 L270 130 L220 130 Z" fill="#f59e0b" />
+    <!-- Shop Body & Cart -->
+    <rect x="50" y="130" width="220" height="130" rx="16" fill="#ffffff" />
+    <path d="M90 180 L230 180 L210 230 L110 230 Z" fill="#2563eb" />
+    <circle cx="125" cy="245" r="12" fill="#0f172a" />
+    <circle cx="195" cy="245" r="12" fill="#0f172a" />
+    <path d="M75 160 L100 160 L115 220" stroke="#0f172a" stroke-width="8" stroke-linecap="round" fill="none" />
+  </g>
+  <text x="256" y="430" text-anchor="middle" font-family="system-ui, sans-serif" font-size="44" font-weight="900" fill="#ffffff" letter-spacing="2">TOKOAPPS</text>
+</svg>

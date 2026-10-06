@@ -282,6 +282,14 @@ export async function pushToSupabase(
   if (resPeng?.error) errors.push(`Pengguna: ${resPeng.error.message}`);
 
   if (errors.length > 0) {
+    const isRls = errors.some((e) => e.toLowerCase().includes('row-level security'));
+    if (isRls) {
+      throw new Error(
+        `Sebagian tabel gagal disinkronkan ke Supabase karena Row-Level Security (RLS) aktif: ${errors.join(
+          ', '
+        )}. Silakan jalankan Skrip Perbaikan RLS di Supabase Dashboard -> SQL Editor.`
+      );
+    }
     throw new Error(`Sebagian tabel gagal disinkronkan ke Supabase: ${errors.join(', ')}`);
   }
 
@@ -512,20 +520,48 @@ CREATE TABLE IF NOT EXISTS pengguna (
 );
 
 -- Nonaktifkan Row Level Security (RLS) untuk kemudahan akses Anon Key
-ALTER TABLE produk DISABLE ROW LEVEL SECURITY;
-ALTER TABLE penjualan DISABLE ROW LEVEL SECURITY;
-ALTER TABLE pembelian DISABLE ROW LEVEL SECURITY;
-ALTER TABLE supplier DISABLE ROW LEVEL SECURITY;
-ALTER TABLE pelanggan DISABLE ROW LEVEL SECURITY;
-ALTER TABLE pengguna DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS produk DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS penjualan DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS pembelian DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS supplier DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS pelanggan DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS pengguna DISABLE ROW LEVEL SECURITY;
+
+-- Berikan izin akses penuh ke role anon, authenticated, postgres, service_role
+GRANT ALL ON TABLE produk TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE penjualan TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE pembelian TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE supplier TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE pelanggan TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE pengguna TO anon, authenticated, postgres, service_role;
+
+-- Buat Kebijakan RLS (Policy) agar BAHKAN JIKA RLS diaktifkan di Supabase,
+-- peran anon (API Key publik) dan authenticated tetap memiliki akses 100% penuh!
+DROP POLICY IF EXISTS "Allow all for anon on produk" ON produk;
+CREATE POLICY "Allow all for anon on produk" ON produk FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on penjualan" ON penjualan;
+CREATE POLICY "Allow all for anon on penjualan" ON penjualan FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on pembelian" ON pembelian;
+CREATE POLICY "Allow all for anon on pembelian" ON pembelian FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on supplier" ON supplier;
+CREATE POLICY "Allow all for anon on supplier" ON supplier FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on pelanggan" ON pelanggan;
+CREATE POLICY "Allow all for anon on pelanggan" ON pelanggan FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on pengguna" ON pengguna;
+CREATE POLICY "Allow all for anon on pengguna" ON pengguna FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
 -- Set Replica Identity Full untuk Realtime Broadcast
-ALTER TABLE produk REPLICA IDENTITY FULL;
-ALTER TABLE penjualan REPLICA IDENTITY FULL;
-ALTER TABLE pembelian REPLICA IDENTITY FULL;
-ALTER TABLE supplier REPLICA IDENTITY FULL;
-ALTER TABLE pelanggan REPLICA IDENTITY FULL;
-ALTER TABLE pengguna REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS produk REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS penjualan REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS pembelian REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS supplier REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS pelanggan REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS pengguna REPLICA IDENTITY FULL;
 
 -- ====================================================================
 -- 7. AKTIFKAN REPLIKASI REALTIME SUPABASE (WEBSOCKET LIVE MULTI-DEVICE)
@@ -540,4 +576,103 @@ BEGIN
   END IF;
 END $$;
 `;
+}
+
+/**
+ * Dedicated 1-Click SQL Script to fix Row-Level Security (RLS) violation errors on existing tables
+ */
+export function generateSupabaseRlsFixSql(): string {
+  return `-- ====================================================================
+-- SKRIP PERBAIKAN CEPAT ROW-LEVEL SECURITY (RLS) SUPABASE
+-- Mengatasi Error: "new row violates row-level security policy for table ..."
+-- Jalankan skrip ini di Supabase Dashboard -> SQL Editor -> Klik Run
+-- ====================================================================
+
+-- 1. Matikan RLS untuk semua tabel aplikasi TokoApps
+ALTER TABLE IF EXISTS public.produk DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.penjualan DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.pembelian DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.supplier DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.pelanggan DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.pengguna DISABLE ROW LEVEL SECURITY;
+
+-- 2. Berikan izin akses penuh ke role anon, authenticated, postgres, service_role
+GRANT ALL ON TABLE public.produk TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE public.penjualan TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE public.pembelian TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE public.supplier TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE public.pelanggan TO anon, authenticated, postgres, service_role;
+GRANT ALL ON TABLE public.pengguna TO anon, authenticated, postgres, service_role;
+
+-- 3. Buat RLS Policies yang selalu mengizinkan akses (USING true WITH CHECK true)
+-- Menjamin jika RLS diaktifkan kembali oleh Supabase, operasi INSERT/UPDATE/SELECT tetap sukses 100%
+DROP POLICY IF EXISTS "Allow all for anon on produk" ON public.produk;
+CREATE POLICY "Allow all for anon on produk" ON public.produk FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on penjualan" ON public.penjualan;
+CREATE POLICY "Allow all for anon on penjualan" ON public.penjualan FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on pembelian" ON public.pembelian;
+CREATE POLICY "Allow all for anon on pembelian" ON public.pembelian FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on supplier" ON public.supplier;
+CREATE POLICY "Allow all for anon on supplier" ON public.supplier FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on pelanggan" ON public.pelanggan;
+CREATE POLICY "Allow all for anon on pelanggan" ON public.pelanggan FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for anon on pengguna" ON public.pengguna;
+CREATE POLICY "Allow all for anon on pengguna" ON public.pengguna FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+
+-- 4. Pastikan Full Replica Identity untuk Realtime WebSocket
+ALTER TABLE IF EXISTS public.produk REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS public.penjualan REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS public.pembelian REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS public.supplier REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS public.pelanggan REPLICA IDENTITY FULL;
+ALTER TABLE IF EXISTS public.pengguna REPLICA IDENTITY FULL;
+
+-- 5. Pastikan publikasi Realtime terhubung
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'produk'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.produk, public.penjualan, public.pembelian, public.supplier, public.pelanggan, public.pengguna;
+  END IF;
+END $$;
+`;
+}
+
+/**
+ * Check if an error message is caused by Row-Level Security (RLS)
+ */
+export function isRlsError(errorMessage?: string): boolean {
+  if (!errorMessage) return false;
+  const msg = errorMessage.toLowerCase();
+  return (
+    msg.includes('row-level security') ||
+    msg.includes('violates row-level security') ||
+    msg.includes('policy for table') ||
+    msg.includes('rls')
+  );
+}
+
+/**
+ * Helper to get direct Supabase SQL Editor link from Project URL
+ */
+export function getSupabaseSqlEditorUrl(supabaseUrl?: string): string {
+  if (!supabaseUrl) return 'https://supabase.com/dashboard';
+  try {
+    const url = new URL(supabaseUrl.trim());
+    const hostParts = url.hostname.split('.');
+    if (hostParts.length >= 3 && hostParts[1] === 'supabase' && hostParts[2] === 'co') {
+      const projectRef = hostParts[0];
+      return `https://supabase.com/dashboard/project/${projectRef}/sql/new`;
+    }
+  } catch {
+    // fallback
+  }
+  return 'https://supabase.com/dashboard';
 }

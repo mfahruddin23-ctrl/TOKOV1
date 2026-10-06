@@ -332,7 +332,16 @@ export default function App() {
       saveStoredDatabaseConfig(updatedConfig);
       showToast(res.message);
     } else {
-      showToast(`Gagal: ${res.message}`);
+      if (
+        res.message &&
+        (res.message.toLowerCase().includes('row-level security') ||
+          res.message.toLowerCase().includes('rls'))
+      ) {
+        setIsSyncModalOpen(true);
+        showToast('⚠️ Error RLS Supabase: Menu sinkronisasi dibuka untuk menyalin skrip perbaikan.');
+      } else {
+        showToast(`Gagal: ${res.message}`);
+      }
     }
   };
 

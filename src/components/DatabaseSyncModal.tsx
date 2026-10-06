@@ -35,6 +35,9 @@ import {
 import {
   testSupabaseConnection,
   generateSupabaseSqlSchema,
+  generateSupabaseRlsFixSql,
+  getSupabaseSqlEditorUrl,
+  isRlsError,
 } from '../utils/supabaseSync';
 import {
   generateMultiDeviceShareUrl,
@@ -86,6 +89,7 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [copiedShareUrl, setCopiedShareUrl] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
+  const [copiedRlsSql, setCopiedRlsSql] = useState(false);
 
   useEffect(() => {
     setForm({ ...config });
@@ -294,6 +298,14 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
     setTimeout(() => setCopiedSql(false), 2500);
   };
 
+  const handleCopyRlsSql = () => {
+    const sql = generateSupabaseRlsFixSql();
+    navigator.clipboard.writeText(sql);
+    setCopiedRlsSql(true);
+    onNotify('Skrip perbaikan RLS Supabase berhasil disalin ke clipboard!');
+    setTimeout(() => setCopiedRlsSql(false), 2500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
@@ -407,6 +419,71 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
               {testResult.status === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
               {testResult.status === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
               <span className="leading-relaxed font-medium">{testResult.message}</span>
+            </div>
+          )}
+
+          {/* RLS (Row-Level Security) Dedicated Error Resolution Alert */}
+          {testResult.status === 'error' && isRlsError(testResult.message) && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-400 text-xs text-amber-950 space-y-3 shadow-lg shadow-amber-500/10 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-amber-500 text-white shrink-0 mt-0.5 shadow-xs">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <h4 className="font-extrabold text-sm text-amber-900 flex items-center gap-1.5">
+                    <span>⚠️ Solusi Cepat: Buka Kunci Akses Row-Level Security (RLS) Supabase</span>
+                  </h4>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Database Supabase Anda mengaktifkan keamanan <strong>Row-Level Security (RLS)</strong> pada tabel, sehingga permintaan simpan dari aplikasi kasir dibatasi. 
+                    Anda hanya perlu menjalankan <strong>1 skrip perbaikan RLS (hanya 2 detik)</strong> di menu SQL Editor Supabase.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200">
+                <button
+                  type="button"
+                  onClick={handleCopyRlsSql}
+                  className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+                >
+                  {copiedRlsSql ? <Check className="w-4 h-4 text-emerald-200" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedRlsSql ? '✓ Skrip Perbaikan RLS Berhasil Disalin!' : '📋 1-Klik Salin Skrip Perbaikan RLS'}</span>
+                </button>
+
+                <a
+                  href={getSupabaseSqlEditorUrl(form.supabaseUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+                >
+                  <ExternalLink className="w-4 h-4 text-blue-300" />
+                  <span>Buka SQL Editor Supabase ↗</span>
+                </a>
+
+                <button
+                  type="button"
+                  disabled={isSyncingSupabase}
+                  onClick={handleSyncAllToSupabaseRealtime}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition disabled:opacity-50 cursor-pointer ml-auto"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+                  <span>Coba Sinkronkan Lagi Sekarang</span>
+                </button>
+              </div>
+
+              {/* Step by step */}
+              <div className="bg-amber-100/80 p-3 rounded-xl border border-amber-300/80 text-[11px] text-amber-900 space-y-1">
+                <span className="font-bold flex items-center gap-1">
+                  <Info className="w-3.5 h-3.5 text-amber-700" />
+                  <span>3 Langkah Mengatasi Error Ini:</span>
+                </span>
+                <ol className="list-decimal list-inside space-y-0.5 text-amber-800 pl-1">
+                  <li>Klik tombol <strong>"1-Klik Salin Skrip Perbaikan RLS"</strong> di atas.</li>
+                  <li>Buka <strong>SQL Editor</strong> di dashboard Supabase &gt; Tempel (Paste) &gt; Klik tombol hijau <strong>Run</strong>.</li>
+                  <li>Kembali ke sini lalu klik tombol hijau <strong>"Coba Sinkronkan Lagi Sekarang"</strong>. Data akan langsung terunggah 100%!</li>
+                </ol>
+              </div>
             </div>
           )}
 
@@ -647,7 +724,16 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
                 >
                   {copiedSql ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedSql ? 'SQL Tersalin ke Clipboard!' : 'Salin Skrip SQL Schema (6 Tabel)'}</span>
+                  <span>{copiedSql ? 'SQL Schema Tersalin!' : 'Salin Skrip SQL Schema (6 Tabel)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyRlsSql}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                >
+                  {copiedRlsSql ? <Check className="w-4 h-4 text-emerald-200" /> : <ShieldCheck className="w-4 h-4" />}
+                  <span>{copiedRlsSql ? 'Skrip RLS Tersalin!' : 'Salin Skrip Perbaikan RLS (Fix RLS)'}</span>
                 </button>
 
                 <button
@@ -661,6 +747,31 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
                 >
                   {form.activeProvider === 'supabase' ? '✓ Provider Aktif: Supabase' : 'Jadikan Database Utama'}
                 </button>
+              </div>
+
+              {/* RLS Solution Box in Tab */}
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300/80 text-xs space-y-2">
+                <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-700" />
+                  <span>Mengalami Error: <em>"new row violates row-level security policy"</em>?</span>
+                </span>
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  Secara default, Supabase mengaktifkan proteksi Row-Level Security (RLS) yang membatasi hak akses simpan via API Key publik (anon).
+                  Cukup klik tombol kuning <strong>"Salin Skrip Perbaikan RLS"</strong> di atas, lalu tempel (Paste) di <strong>SQL Editor</strong> Supabase dan klik <strong>Run</strong>. Semua tabel langsung terbuka dan dapat disinkronkan tanpa error.
+                </p>
+                {form.supabaseUrl && (
+                  <div className="pt-1">
+                    <a
+                      href={getSupabaseSqlEditorUrl(form.supabaseUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-700 hover:text-blue-900 underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Buka SQL Editor Project Supabase Anda Langsung</span>
+                    </a>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">

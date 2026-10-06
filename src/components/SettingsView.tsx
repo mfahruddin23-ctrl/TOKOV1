@@ -21,8 +21,12 @@ import {
   Zap,
   QrCode,
   Info,
+  ShieldCheck,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { StoreSettings, DatabaseConfig } from '../types';
+import { generateSupabaseSqlSchema, generateSupabaseRlsFixSql } from '../utils/supabaseSync';
 
 interface SettingsViewProps {
   settings: StoreSettings;
@@ -55,6 +59,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 }) => {
   const [form, setForm] = useState<StoreSettings>({ ...settings });
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [copiedRlsSql, setCopiedRlsSql] = useState(false);
+  const [copiedSchemaSql, setCopiedSchemaSql] = useState(false);
+
+  const handleCopyRlsFix = () => {
+    const sql = generateSupabaseRlsFixSql();
+    navigator.clipboard.writeText(sql);
+    setCopiedRlsSql(true);
+    setTimeout(() => setCopiedRlsSql(false), 2500);
+  };
+
+  const handleCopySchema = () => {
+    const sql = generateSupabaseSqlSchema();
+    navigator.clipboard.writeText(sql);
+    setCopiedSchemaSql(true);
+    setTimeout(() => setCopiedSchemaSql(false), 2500);
+  };
 
   // Clear modal confirmation state
   const [clearTarget, setClearTarget] = useState<'sales' | 'purchases' | 'all' | null>(null);
@@ -316,9 +336,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               />
             </div>
 
-            {/* Quick Action Button for Supabase Realtime */}
-            {onOpenSyncModal && (
-              <div className="md:col-span-2 pt-2">
+            {/* Quick Action Button for Supabase Realtime & RLS Fix */}
+            <div className="md:col-span-2 pt-2 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyRlsFix}
+                  className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Salin skrip SQL jika muncul error: new row violates row-level security policy"
+                >
+                  {copiedRlsSql ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />}
+                  <span>{copiedRlsSql ? '✓ Skrip RLS Tersalin!' : 'Salin Skrip Perbaikan RLS (Fix Error RLS)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopySchema}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  {copiedSchemaSql ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-600" />}
+                  <span>{copiedSchemaSql ? '✓ Skrip Schema Tersalin!' : 'Salin Skrip SQL Schema Supabase'}</span>
+                </button>
+              </div>
+
+              {onOpenSyncModal && (
                 <button
                   type="button"
                   onClick={onOpenSyncModal}
@@ -327,8 +368,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <Zap className="w-4 h-4 text-amber-300 animate-pulse" />
                   <span>Buka Hub Sinkronisasi & Unggah Data ke Supabase Realtime</span>
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

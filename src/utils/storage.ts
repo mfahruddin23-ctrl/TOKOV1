@@ -1,4 +1,14 @@
-import { Produk, Penjualan, Pembelian, Supplier, Pelanggan, Pengguna, StoreSettings } from '../types';
+import {
+  Produk,
+  Penjualan,
+  Pembelian,
+  Supplier,
+  Pelanggan,
+  Pengguna,
+  StoreSettings,
+  DatabaseConfig,
+  defaultDatabaseConfig,
+} from '../types';
 import {
   initialProduk,
   initialPenjualan,
@@ -18,6 +28,7 @@ const STORAGE_KEYS = {
   PENGGUNA: 'toko_gas_pengguna_v1',
   SETTINGS: 'toko_gas_settings_v1',
   CURRENT_USER: 'toko_gas_current_user_v1',
+  DATABASE_CONFIG: 'toko_gas_db_config_v1',
 };
 
 export function loadStoredProducts(): Produk[] {
@@ -194,4 +205,24 @@ export function resetAllDataToDefault() {
   localStorage.removeItem(STORAGE_KEYS.PENGGUNA);
   localStorage.removeItem(STORAGE_KEYS.SETTINGS);
   localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  localStorage.removeItem(STORAGE_KEYS.DATABASE_CONFIG);
+}
+
+export function loadStoredDatabaseConfig(): DatabaseConfig {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.DATABASE_CONFIG);
+    if (!data) return defaultDatabaseConfig;
+    const parsed = JSON.parse(data);
+    return { ...defaultDatabaseConfig, ...parsed };
+  } catch {
+    return defaultDatabaseConfig;
+  }
+}
+
+export function saveStoredDatabaseConfig(config: DatabaseConfig) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.DATABASE_CONFIG, JSON.stringify(config));
+  } catch (e) {
+    console.error('Failed to save database config:', e);
+  }
 }

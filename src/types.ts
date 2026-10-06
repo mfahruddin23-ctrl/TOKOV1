@@ -75,6 +75,33 @@ export interface Pengguna {
   role: 'Admin' | 'Kasir';
 }
 
+export interface DatabaseConfig {
+  activeProvider: 'local' | 'spreadsheet' | 'supabase' | 'dual';
+  spreadsheetUrl: string;
+  spreadsheetId: string;
+  gasWebAppUrl: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  autoSync: boolean;
+  syncIntervalSec: number;
+  lastSyncTime: string | null;
+  lastSyncStatus: 'idle' | 'syncing' | 'success' | 'error';
+  syncErrorMessage?: string;
+}
+
+export const defaultDatabaseConfig: DatabaseConfig = {
+  activeProvider: 'local',
+  spreadsheetUrl: '',
+  spreadsheetId: '',
+  gasWebAppUrl: '',
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  autoSync: true,
+  syncIntervalSec: 30,
+  lastSyncTime: null,
+  lastSyncStatus: 'idle',
+};
+
 export interface StoreSettings {
   namaToko: string;
   slogan: string;
@@ -86,4 +113,7 @@ export interface StoreSettings {
   mataUang: string; // Rp
   pesanStruk: string;
   gasWebAppUrl?: string;
+  spreadsheetUrl?: string;
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
 }

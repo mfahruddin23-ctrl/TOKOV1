@@ -16,8 +16,13 @@ import {
   Boxes,
   ShieldAlert,
   X,
+  Globe,
+  FileSpreadsheet,
+  Zap,
+  QrCode,
+  Info,
 } from 'lucide-react';
-import { StoreSettings } from '../types';
+import { StoreSettings, DatabaseConfig } from '../types';
 
 interface SettingsViewProps {
   settings: StoreSettings;
@@ -30,6 +35,8 @@ interface SettingsViewProps {
   onClearSales: () => void;
   onClearPurchases: () => void;
   onClearAllTransactions: () => void;
+  dbConfig?: DatabaseConfig;
+  onOpenSyncModal?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -43,6 +50,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onClearSales,
   onClearPurchases,
   onClearAllTransactions,
+  dbConfig,
+  onOpenSyncModal,
 }) => {
   const [form, setForm] = useState<StoreSettings>({ ...settings });
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -213,27 +222,99 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* GAS Web App Link */}
-        <div className="space-y-3 pt-4 border-t border-slate-100">
-          <h3 className="font-bold text-sm text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
-            <Link className="w-4 h-4 text-blue-600" />
-            <span>Koneksi URL Web App Google Apps Script (Opsional)</span>
-          </h3>
+        {/* Koneksi Database Cloud Multi-Device (Spreadsheet & Supabase) */}
+        <div className="space-y-4 pt-4 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-600" />
+              <span>Koneksi Database Cloud Multi-Device (Google Spreadsheet & Supabase)</span>
+            </h3>
+            {onOpenSyncModal && (
+              <button
+                type="button"
+                onClick={onOpenSyncModal}
+                className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition self-start sm:self-auto"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Buka Hub Sinkronisasi & QR HP</span>
+              </button>
+            )}
+          </div>
 
-          <div className="text-xs">
-            <label className="block font-semibold text-slate-700 mb-1">
-              Google Apps Script Deployed Web App URL
-            </label>
-            <input
-              type="text"
-              value={form.gasWebAppUrl || ''}
-              onChange={(e) => setForm({ ...form, gasWebAppUrl: e.target.value })}
-              placeholder="https://script.google.com/macros/s/.../exec"
-              className="w-full p-2.5 border border-slate-300 rounded-xl font-mono text-xs"
-            />
-            <p className="text-[11px] text-slate-400 mt-1">
-              Jika diisi, aplikasi dapat mengirim data transaksi langsung ke webhook Apps Script Anda.
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] leading-relaxed">
+              Agar saat toko dibuka di perangkat lain (HP kasir, tablet, komputer lain) seluruh data yang dibuka tetap sama,
+              masukkan link Google Spreadsheet atau database Supabase di bawah ini.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {/* Link Google Spreadsheet */}
+            <div className="md:col-span-2">
+              <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Link Google Spreadsheet (Google Sheets Link)</span>
+              </label>
+              <input
+                type="text"
+                value={form.spreadsheetUrl || ''}
+                onChange={(e) => setForm({ ...form, spreadsheetUrl: e.target.value })}
+                placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-mono text-xs"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Salin link lengkap Google Spreadsheet Anda. Pastikan sheet diatur dapat dilihat oleh siapa saja dengan link.
+              </p>
+            </div>
+
+            {/* Google Apps Script Deployed Web App URL */}
+            <div className="md:col-span-2">
+              <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Link className="w-3.5 h-3.5 text-blue-600" />
+                <span>URL Web App Google Apps Script (Untuk Simpan & Update Otomatis)</span>
+              </label>
+              <input
+                type="text"
+                value={form.gasWebAppUrl || ''}
+                onChange={(e) => setForm({ ...form, gasWebAppUrl: e.target.value })}
+                placeholder="https://script.google.com/macros/s/.../exec"
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-mono text-xs"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Dapatkan dari Google Apps Script &gt; Deploy &gt; Web App (Who has access: Anyone).
+              </p>
+            </div>
+
+            {/* Supabase URL */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-blue-600" />
+                <span>Supabase Project URL</span>
+              </label>
+              <input
+                type="text"
+                value={form.supabaseUrl || ''}
+                onChange={(e) => setForm({ ...form, supabaseUrl: e.target.value })}
+                placeholder="https://xyz.supabase.co"
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-mono text-xs"
+              />
+            </div>
+
+            {/* Supabase Anon Key */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                <span>Supabase Anon Public Key</span>
+              </label>
+              <input
+                type="password"
+                value={form.supabaseAnonKey || ''}
+                onChange={(e) => setForm({ ...form, supabaseAnonKey: e.target.value })}
+                placeholder="eyJhbGciOi..."
+                className="w-full p-2.5 border border-slate-300 rounded-xl font-mono text-xs"
+              />
+            </div>
           </div>
         </div>
 

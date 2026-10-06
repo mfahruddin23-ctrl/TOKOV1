@@ -45,6 +45,7 @@ export const POSView: React.FC<POSViewProps> = ({
   const [cart, setCart] = useState<PenjualanItem[]>([]);
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
   const [taxEnabled, setTaxEnabled] = useState<boolean>(settings.pajakAktif);
+  const [mobilePosTab, setMobilePosTab] = useState<'katalog' | 'keranjang'>('katalog');
 
   // Modal Checkout state
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
@@ -266,10 +267,42 @@ export const POSView: React.FC<POSViewProps> = ({
         </div>
       </div>
 
+      {/* Mobile Segmented Switcher (< lg) */}
+      <div className="lg:hidden flex bg-slate-200/90 p-1 rounded-2xl gap-1">
+        <button
+          type="button"
+          onClick={() => setMobilePosTab('katalog')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            mobilePosTab === 'katalog' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+          }`}
+        >
+          <span>Katalog Produk ({filteredProducts.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobilePosTab('keranjang')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 relative ${
+            mobilePosTab === 'keranjang' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600'
+          }`}
+        >
+          <ShoppingCart className="w-3.5 h-3.5" />
+          <span>Keranjang ({totalQty})</span>
+          {totalQty > 0 && (
+            <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+              {formatRupiah(grandTotal)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Main Split: Catalog Products (Left) & Cart Panel (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Product Grid */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-3">
+        <div
+          className={`lg:col-span-7 xl:col-span-8 space-y-3 ${
+            mobilePosTab === 'katalog' ? 'block' : 'hidden lg:block'
+          }`}
+        >
           {/* Category Chips and Live Search */}
           <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs space-y-2.5">
             <div className="relative">
@@ -358,7 +391,11 @@ export const POSView: React.FC<POSViewProps> = ({
         </div>
 
         {/* Right Column: Checkout Cart Summary */}
-        <div className="lg:col-span-5 xl:col-span-4 sticky top-20">
+        <div
+          className={`lg:col-span-5 xl:col-span-4 sticky top-20 ${
+            mobilePosTab === 'keranjang' ? 'block' : 'hidden lg:block'
+          }`}
+        >
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             {/* Cart Header */}
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
@@ -491,6 +528,35 @@ export const POSView: React.FC<POSViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Floating Mobile Cart Summary Bar (When in Katalog mode and cart has items) */}
+      {totalQty > 0 && mobilePosTab === 'katalog' && (
+        <div className="lg:hidden fixed bottom-16 left-3 right-3 z-30 animate-in slide-in-from-bottom-2 duration-150">
+          <button
+            type="button"
+            onClick={() => setMobilePosTab('keranjang')}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center text-white font-bold text-xs">
+                {totalQty}
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold leading-none">
+                  Keranjang Kasir
+                </span>
+                <span className="text-sm font-extrabold text-emerald-400">
+                  {formatRupiah(grandTotal)}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl transition">
+              <span>Buka & Bayar</span>
+              <span>&rarr;</span>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Checkout Payment Modal */}
       {isCheckoutModalOpen && (

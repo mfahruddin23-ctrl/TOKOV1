@@ -13,14 +13,18 @@ import {
   FileSpreadsheet,
   UserCog,
   Smartphone,
+  Globe,
+  Zap,
 } from 'lucide-react';
-import { Pengguna } from '../types';
+import { Pengguna, DatabaseConfig } from '../types';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   currentUser: Pengguna | null;
   lowStockCount: number;
+  dbConfig?: DatabaseConfig;
+  onOpenSyncModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -28,6 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   currentUser,
   lowStockCount,
+  dbConfig,
+  onOpenSyncModal,
 }) => {
   const isAdmin = currentUser?.role === 'Admin';
 
@@ -117,15 +123,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-full lg:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
-      <div className="p-4 border-b border-slate-100 hidden lg:block">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-          <span>Database: Google Sheets</span>
-        </div>
+    <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col shrink-0 min-h-[calc(100vh-4rem)]">
+      {/* Cloud Database Status Card */}
+      <div className="p-3.5 border-b border-slate-100">
+        <button
+          type="button"
+          onClick={onOpenSyncModal}
+          className="w-full p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left transition flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-2">
+            {dbConfig?.activeProvider === 'supabase' ? (
+              <Zap className="w-4 h-4 text-blue-600 shrink-0" />
+            ) : dbConfig?.activeProvider === 'dual' ? (
+              <Globe className="w-4 h-4 text-indigo-600 shrink-0" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+            )}
+            <div className="overflow-hidden">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider leading-none">
+                Database Cloud
+              </span>
+              <span className="text-xs font-bold text-slate-800 capitalize truncate block mt-0.5">
+                {dbConfig?.activeProvider === 'dual'
+                  ? 'Dual Cloud Sync'
+                  : dbConfig?.activeProvider === 'supabase'
+                  ? 'Supabase DB'
+                  : dbConfig?.activeProvider === 'spreadsheet'
+                  ? 'Google Sheets'
+                  : 'Lokal (Offline)'}
+              </span>
+            </div>
+          </div>
+          <span className="text-[10px] text-blue-600 font-bold group-hover:underline">
+            Ubah
+          </span>
+        </button>
       </div>
 
-      <nav className="p-3 space-y-1 overflow-y-auto">
+      {/* Main Navigation Links */}
+      <nav className="p-3 space-y-1 overflow-y-auto flex-1">
         {menuItems.map((item) => {
           if (item.adminOnly && !isAdmin) return null;
 
@@ -161,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Role notice footer */}
-      <div className="mt-auto p-4 border-t border-slate-100 bg-slate-50/50">
+      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         <div className="text-xs text-slate-500 flex items-center justify-between">
           <span>Mode Hak Akses:</span>
           <span className="font-semibold text-slate-800">{currentUser?.role || 'Guest'}</span>

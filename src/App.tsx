@@ -19,6 +19,9 @@ import { SettingsView } from './components/SettingsView';
 import { LoginModal } from './components/LoginModal';
 import { UserManagementView } from './components/UserManagementView';
 import { ApkBuilderView } from './components/ApkBuilderView';
+import { DatabaseSyncModal } from './components/DatabaseSyncModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { MobileDrawer } from './components/MobileDrawer';
 
 import {
   Produk,
@@ -28,6 +31,7 @@ import {
   Pelanggan,
   Pengguna,
   StoreSettings,
+  DatabaseConfig,
 } from './types';
 import {
   loadStoredProducts,
@@ -50,7 +54,15 @@ import {
   clearStoredSales,
   clearStoredPurchases,
   clearStoredAllTransactions,
+  loadStoredDatabaseConfig,
+  saveStoredDatabaseConfig,
 } from './utils/storage';
+import {
+  parseMultiDeviceUrlParams,
+  pullCloudData,
+  pushCloudData,
+} from './utils/cloudSyncEngine';
+import { SyncPayload } from './utils/spreadsheetSync';
 
 export default function App() {
   // Global Data State
@@ -63,10 +75,21 @@ export default function App() {
   const [settings, setSettings] = useState<StoreSettings>(() => loadStoredSettings());
   const [currentUser, setCurrentUser] = useState<Pengguna | null>(() => loadCurrentUser());
 
+  // Database Cloud & Multi-Device Config
+  const [dbConfig, setDbConfig] = useState<DatabaseConfig>(() => loadStoredDatabaseConfig());
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
+
   // UI Navigation State
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Toast Helper
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   // Sync to local storage
   useEffect(() => {
@@ -101,141 +124,292 @@ export default function App() {
     saveCurrentUser(currentUser);
   }, [currentUser]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  useEffect(() => {
+    saveStoredDatabaseConfig(dbConfig);
+  }, [dbConfig]);
+
+  // Apply Pulled Cloud Data Helper
+  const handleApplyPulledData = (data: Partial<SyncPayload>, silent = false) => {
+    if (data.products && Array.isArray(data.products) && data.products.length > 0) {
+      setProducts(data.products);
+    }
+    if (data.sales && Array.isArray(data.sales)) {
+      setSales(data.sales);
+    }
+    if (data.purchases && Array.isArray(data.purchases)) {
+      setPurchases(data.purchases);
+    }
+    if (data.suppliers && Array.isArray(data.suppliers) && data.suppliers.length > 0) {
+      setSuppliers(data.suppliers);
+    }
+    if (data.customers && Array.isArray(data.customers) && data.customers.length > 0) {
+      setCustomers(data.customers);
+    }
+    if (data.users && Array.isArray(data.users) && data.users.length > 0) {
+      setUsers(data.users);
+    }
+    if (!silent) {
+      showToast('Data toko berhasil disinkronkan dengan database cloud!');
+    }
+  };
+
+  // Detect Multi-Device Connection URL on initial mount
+  useEffect(() => {
+    const urlConfig = parseMultiDeviceUrlParams();
+    if (urlConfig) {
+      setDbConfig((prev) => {
+        const merged: DatabaseConfig = { ...prev, ...urlConfig };
+        saveStoredDatabaseConfig(merged);
+
+        // Pull latest cloud database immediately
+        pullCloudData(merged)
+          .then((res) => {
+            if (res.success && res.pulledData) {
+              handleApplyPulledData(res.pulledData);
+              showToast('📱 Terhubung ke database multi-device! Data berhasil dimuat.');
+            } else if (!res.success) {
+              showToast(`Koneksi multi-device aktif: ${res.message}`);
+            }
+          })
+          .catch((err) => {
+            console.warn('Initial cloud pull failed:', err);
+          });
+
+        return merged;
+      });
+
+      // Clean browser address bar
+      if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+        const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    }
+  }, []);
+
+  // Periodic Auto-Sync (every 30 seconds if tab visible and provider is not local)
+  useEffect(() => {
+    if (!dbConfig.autoSync || dbConfig.activeProvider === 'local') return;
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        pullCloudData(dbConfig)
+          .then((res) => {
+            if (res.success && res.pulledData) {
+              handleApplyPulledData(res.pulledData, true); // silent background update
+              setDbConfig((prev) => ({
+                ...prev,
+                lastSyncTime: res.timestamp,
+                lastSyncStatus: 'success',
+              }));
+            }
+          })
+          .catch(() => {});
+      }
+    }, Math.max(15, dbConfig.syncIntervalSec || 30) * 1000);
+
+    return () => clearInterval(interval);
+  }, [dbConfig]);
+
+  // Push helper on mutations
+  const triggerAutoPush = (overridePayload?: Partial<SyncPayload>) => {
+    if (!dbConfig.autoSync || dbConfig.activeProvider === 'local') return;
+
+    const payload: SyncPayload = {
+      products: overridePayload?.products ?? products,
+      sales: overridePayload?.sales ?? sales,
+      purchases: overridePayload?.purchases ?? purchases,
+      suppliers: overridePayload?.suppliers ?? suppliers,
+      customers: overridePayload?.customers ?? customers,
+      users: overridePayload?.users ?? users,
+      settings: overridePayload?.settings ?? settings,
+    };
+
+    pushCloudData(dbConfig, payload)
+      .then((res) => {
+        if (res.success) {
+          setDbConfig((prev) => ({
+            ...prev,
+            lastSyncTime: res.timestamp,
+            lastSyncStatus: 'success',
+          }));
+        }
+      })
+      .catch((err) => {
+        console.warn('Auto push failed:', err);
+      });
   };
 
   // Stock operations
   const handleStockReduced = (reducedItems: { barcode: string; qty: number }[]) => {
-    setProducts((prev) =>
-      prev.map((p) => {
-        const found = reducedItems.find((itm) => itm.barcode === p.barcode);
-        if (found) {
-          return {
-            ...p,
-            stok: Math.max(0, p.stok - found.qty),
-          };
-        }
-        return p;
-      })
-    );
+    const updated = products.map((p) => {
+      const found = reducedItems.find((itm) => itm.barcode === p.barcode);
+      if (found) {
+        return {
+          ...p,
+          stok: Math.max(0, p.stok - found.qty),
+        };
+      }
+      return p;
+    });
+    setProducts(updated);
+    triggerAutoPush({ products: updated });
   };
 
   const handleStockIncreased = (productId: string, qty: number, newBuyPrice: number) => {
-    setProducts((prev) =>
-      prev.map((p) => {
-        if (p.id === productId || p.barcode === productId) {
-          return {
-            ...p,
-            stok: p.stok + qty,
-            hargaBeli: newBuyPrice > 0 ? newBuyPrice : p.hargaBeli,
-          };
-        }
-        return p;
-      })
-    );
+    const updated = products.map((p) => {
+      if (p.id === productId || p.barcode === productId) {
+        return {
+          ...p,
+          stok: p.stok + qty,
+          hargaBeli: newBuyPrice > 0 ? newBuyPrice : p.hargaBeli,
+        };
+      }
+      return p;
+    });
+    setProducts(updated);
     showToast(`Stok produk berhasil ditambah sejumlah ${qty}!`);
+    triggerAutoPush({ products: updated });
   };
 
   // Sales
   const handleSaveTransaction = (sale: Penjualan) => {
-    setSales((prev) => [sale, ...prev]);
-    showToast(`Transaksi ${sale.id} berhasil disimpan ke Spreadsheet!`);
+    const updatedSales = [sale, ...sales];
+    setSales(updatedSales);
+    showToast(`Transaksi ${sale.id} berhasil dicatat!`);
+    triggerAutoPush({ sales: updatedSales });
   };
 
   // Purchases
   const handleAddPurchase = (purchase: Pembelian) => {
-    setPurchases((prev) => [purchase, ...prev]);
+    const updatedPurchases = [purchase, ...purchases];
+    setPurchases(updatedPurchases);
+    triggerAutoPush({ purchases: updatedPurchases });
   };
 
   // Product CRUD
   const handleAddProduct = (prod: Produk) => {
-    setProducts((prev) => [prod, ...prev]);
+    const updated = [prod, ...products];
+    setProducts(updated);
     showToast(`Produk "${prod.nama}" berhasil ditambahkan!`);
+    triggerAutoPush({ products: updated });
   };
 
   const handleUpdateProduct = (prod: Produk) => {
-    setProducts((prev) => prev.map((p) => (p.id === prod.id ? prod : p)));
+    const updated = products.map((p) => (p.id === prod.id ? prod : p));
+    setProducts(updated);
     showToast(`Produk "${prod.nama}" berhasil diperbarui!`);
+    triggerAutoPush({ products: updated });
   };
 
   const handleDeleteProduct = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    const updated = products.filter((p) => p.id !== id);
+    setProducts(updated);
     showToast('Produk berhasil dihapus!');
+    triggerAutoPush({ products: updated });
   };
 
   const handleImportProducts = (prods: Produk[]) => {
     setProducts(prods);
     showToast(`Berhasil mengimpor ${prods.length} produk!`);
+    triggerAutoPush({ products: prods });
   };
 
   // Supplier CRUD
   const handleAddSupplier = (s: Supplier) => {
-    setSuppliers((prev) => [...prev, s]);
+    const updated = [...suppliers, s];
+    setSuppliers(updated);
     showToast(`Supplier "${s.nama}" berhasil ditambahkan!`);
+    triggerAutoPush({ suppliers: updated });
   };
 
   const handleUpdateSupplier = (s: Supplier) => {
-    setSuppliers((prev) => prev.map((item) => (item.id === s.id ? s : item)));
+    const updated = suppliers.map((item) => (item.id === s.id ? s : item));
+    setSuppliers(updated);
     showToast(`Supplier "${s.nama}" diperbarui!`);
+    triggerAutoPush({ suppliers: updated });
   };
 
   const handleDeleteSupplier = (id: string) => {
-    setSuppliers((prev) => prev.filter((item) => item.id !== id));
+    const updated = suppliers.filter((item) => item.id !== id);
+    setSuppliers(updated);
     showToast('Supplier berhasil dihapus!');
+    triggerAutoPush({ suppliers: updated });
   };
 
   // Customer CRUD
   const handleAddCustomer = (c: Pelanggan) => {
-    setCustomers((prev) => [...prev, c]);
+    const updated = [...customers, c];
+    setCustomers(updated);
     showToast(`Pelanggan "${c.nama}" berhasil ditambahkan!`);
+    triggerAutoPush({ customers: updated });
   };
 
   const handleUpdateCustomer = (c: Pelanggan) => {
-    setCustomers((prev) => prev.map((item) => (item.id === c.id ? c : item)));
+    const updated = customers.map((item) => (item.id === c.id ? c : item));
+    setCustomers(updated);
     showToast(`Pelanggan "${c.nama}" diperbarui!`);
+    triggerAutoPush({ customers: updated });
   };
 
   const handleDeleteCustomer = (id: string) => {
-    setCustomers((prev) => prev.filter((item) => item.id !== id));
+    const updated = customers.filter((item) => item.id !== id);
+    setCustomers(updated);
     showToast('Pelanggan berhasil dihapus!');
+    triggerAutoPush({ customers: updated });
   };
 
   // User Management CRUD handlers
   const handleAddUser = (newUser: Pengguna) => {
-    setUsers((prev) => [...prev, newUser]);
+    const updated = [...users, newUser];
+    setUsers(updated);
     showToast(`Pengguna "${newUser.nama}" (${newUser.role}) berhasil ditambahkan!`);
+    triggerAutoPush({ users: updated });
   };
 
   const handleUpdateUser = (updatedUser: Pengguna) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.username === updatedUser.username ? updatedUser : u))
-    );
+    const updated = users.map((u) => (u.username === updatedUser.username ? updatedUser : u));
+    setUsers(updated);
     if (currentUser?.username === updatedUser.username) {
       setCurrentUser((prev) => (prev ? { ...prev, nama: updatedUser.nama, role: updatedUser.role } : null));
     }
     showToast(`Profil pengguna "${updatedUser.nama}" berhasil diperbarui!`);
+    triggerAutoPush({ users: updated });
   };
 
   const handleChangePassword = (username: string, newPass: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.username === username ? { ...u, password: newPass } : u))
-    );
+    const updated = users.map((u) => (u.username === username ? { ...u, password: newPass } : u));
+    setUsers(updated);
     if (currentUser?.username === username) {
       setCurrentUser((prev) => (prev ? { ...prev, password: newPass } : null));
     }
     showToast(`Password untuk "${username}" berhasil diperbarui!`);
+    triggerAutoPush({ users: updated });
   };
 
   const handleDeleteUser = (username: string) => {
-    setUsers((prev) => prev.filter((u) => u.username !== username));
+    const updated = users.filter((u) => u.username !== username);
+    setUsers(updated);
     showToast(`Pengguna "${username}" telah dihapus.`);
+    triggerAutoPush({ users: updated });
   };
 
   // Settings & Backups
   const handleSaveSettings = (newSettings: StoreSettings) => {
     setSettings(newSettings);
+
+    // Keep dbConfig in sync if URLs were provided in Settings
+    setDbConfig((prev) => {
+      const merged: DatabaseConfig = {
+        ...prev,
+        spreadsheetUrl: newSettings.spreadsheetUrl ?? prev.spreadsheetUrl,
+        gasWebAppUrl: newSettings.gasWebAppUrl ?? prev.gasWebAppUrl,
+        supabaseUrl: newSettings.supabaseUrl ?? prev.supabaseUrl,
+        supabaseAnonKey: newSettings.supabaseAnonKey ?? prev.supabaseAnonKey,
+      };
+      saveStoredDatabaseConfig(merged);
+      return merged;
+    });
+
     showToast('Pengaturan toko berhasil disimpan!');
   };
 
@@ -248,6 +422,7 @@ export default function App() {
     setCustomers(loadStoredCustomers());
     setSettings(loadStoredSettings());
     setCurrentUser(loadCurrentUser());
+    setDbConfig(loadStoredDatabaseConfig());
     showToast('Data toko telah direset ke data contoh bawaan.');
   };
 
@@ -260,7 +435,9 @@ export default function App() {
       purchases,
       suppliers,
       customers,
+      users,
       settings,
+      dbConfig,
     };
     const jsonStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backup, null, 2));
     const dl = document.createElement('a');
@@ -280,7 +457,9 @@ export default function App() {
       if (data.purchases) setPurchases(data.purchases);
       if (data.suppliers) setSuppliers(data.suppliers);
       if (data.customers) setCustomers(data.customers);
+      if (data.users) setUsers(data.users);
       if (data.settings) setSettings(data.settings);
+      if (data.dbConfig) setDbConfig(data.dbConfig);
       showToast('Cadangan data berhasil dipulihkan!');
     } catch {
       alert('File JSON tidak valid atau rusak!');
@@ -292,12 +471,14 @@ export default function App() {
     setSales([]);
     clearStoredSales();
     showToast('Data riwayat transaksi penjualan berhasil dikosongkan!');
+    triggerAutoPush({ sales: [] });
   };
 
   const handleClearPurchases = () => {
     setPurchases([]);
     clearStoredPurchases();
     showToast('Data riwayat pembelian supplier berhasil dikosongkan!');
+    triggerAutoPush({ purchases: [] });
   };
 
   const handleClearAllTransactions = () => {
@@ -305,6 +486,7 @@ export default function App() {
     setPurchases([]);
     clearStoredAllTransactions();
     showToast('Seluruh data transaksi (Penjualan & Pembelian) berhasil dikosongkan!');
+    triggerAutoPush({ sales: [], purchases: [] });
   };
 
   // Low stock counter
@@ -320,6 +502,9 @@ export default function App() {
         setActiveTab={setActiveTab}
         onLogout={() => setIsLoginModalOpen(true)}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        dbConfig={dbConfig}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
       />
 
       {/* Main Body */}
@@ -329,9 +514,11 @@ export default function App() {
           setActiveTab={setActiveTab}
           currentUser={currentUser}
           lowStockCount={lowStockCount}
+          dbConfig={dbConfig}
+          onOpenSyncModal={() => setIsSyncModalOpen(true)}
         />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto pb-24 lg:pb-8">
           {activeTab === 'dashboard' && (
             <DashboardView
               products={products}
@@ -439,10 +626,65 @@ export default function App() {
               onClearSales={handleClearSales}
               onClearPurchases={handleClearPurchases}
               onClearAllTransactions={handleClearAllTransactions}
+              dbConfig={dbConfig}
+              onOpenSyncModal={() => setIsSyncModalOpen(true)}
             />
           )}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet < lg) */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
+        dbConfig={dbConfig}
+      />
+
+      {/* Mobile Offcanvas Drawer (Visible on < lg) */}
+      <MobileDrawer
+        isOpen={isMobileDrawerOpen}
+        onClose={() => setIsMobileDrawerOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        currentUser={currentUser}
+        settings={settings}
+        dbConfig={dbConfig}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onLogout={() => setIsLoginModalOpen(true)}
+        lowStockCount={lowStockCount}
+      />
+
+      {/* Database Cloud & Multi-Device Synchronization Modal */}
+      <DatabaseSyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        config={dbConfig}
+        onSaveConfig={(newCfg) => {
+          setDbConfig(newCfg);
+          saveStoredDatabaseConfig(newCfg);
+          setSettings((prev) => ({
+            ...prev,
+            spreadsheetUrl: newCfg.spreadsheetUrl,
+            gasWebAppUrl: newCfg.gasWebAppUrl,
+            supabaseUrl: newCfg.supabaseUrl,
+            supabaseAnonKey: newCfg.supabaseAnonKey,
+          }));
+        }}
+        localData={{
+          products,
+          sales,
+          purchases,
+          suppliers,
+          customers,
+          users,
+          settings,
+        }}
+        onApplyPulledData={handleApplyPulledData}
+        onNotify={showToast}
+      />
 
       {/* Login / Switch Account Modal */}
       <LoginModal
@@ -457,7 +699,7 @@ export default function App() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-16 lg:bottom-5 right-5 z-50 bg-slate-900 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
           {toastMessage}
         </div>
       )}

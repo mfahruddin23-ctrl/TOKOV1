@@ -33,14 +33,144 @@ var SHEET_PENGATURAN = "Pengaturan";
 
 /**
  * Endpoint utama Web App (doGet)
- * Menampilkan antarmuka HTML Service dengan Bootstrap 5
+ * Menampilkan antarmuka HTML Service dengan Bootstrap 5 ATAU Respon REST API JSON
  */
 function doGet(e) {
+  // Jika pemanggilan API dari aplikasi multi-device / smartphone
+  if (e && e.parameter && e.parameter.action) {
+    var action = e.parameter.action;
+    if (action === 'getAllData') {
+      var allData = getAllDataFromSheets();
+      return ContentService.createTextOutput(JSON.stringify(allData))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (action === 'ping') {
+      return ContentService.createTextOutput(JSON.stringify({ status: 'ok', success: true, timestamp: new Date() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   var template = HtmlService.createTemplateFromFile('Index');
   return template.evaluate()
     .setTitle('TokoApp - Sistem Kasir & Inventory Spreadsheet')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Endpoint API POST (doPost)
+ * Menerima sinkronisasi data dari aplikasi Web / HP multi-device
+ */
+function doPost(e) {
+  try {
+    var raw = e.postData ? e.postData.contents : "";
+    var body = raw ? JSON.parse(raw) : {};
+    var action = body.action || (e.parameter ? e.parameter.action : "");
+
+    if (action === 'syncAllData' && body.data) {
+      syncAllDataToSheets(body.data);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Seluruh data berhasil disinkronkan ke Google Spreadsheet!"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'addSale' && body.sale) {
+      simpanTransaksi(body.sale);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Transaksi berhasil dicatat di Spreadsheet!"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      message: "Data diterima oleh Google Apps Script"
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: "Gagal memproses data: " + err.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Helper REST API: Ambil semua data dari 6 sheet sekaligus
+ */
+function getAllDataFromSheets() {
+  return {
+    success: true,
+    products: getProducts(),
+    sales: getSalesHistory(),
+    purchases: getPurchases(),
+    suppliers: getSuppliers(),
+    customers: getCustomers(),
+    users: getUsers()
+  };
+}
+
+/**
+ * Helper REST API: Sinkronisasi data masuk dari aplikasi
+ */
+function syncAllDataToSheets(data) {
+  var ss = getSpreadsheet();
+  
+  // Sinkronkan Produk jika ada
+  if (data.products && data.products.length > 0) {
+    var sheet = getOrCreateSheet(ss, SHEET_PRODUK);
+    var headers = ["ID Produk", "Barcode", "Nama Produk", "Kategori", "Satuan", "Harga Beli", "Harga Jual", "Stok", "Minimum Stok", "Supplier", "Status"];
+    sheet.clearContents();
+    sheet.appendRow(headers);
+    var rows = data.products.map(function(p) {
+      return [p.id, p.barcode, p.nama, p.kategori, p.satuan, p.hargaBeli, p.hargaJual, p.stok, p.minStok, p.supplier || "", p.status || "Aktif"];
+    });
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+  }
+
+  // Sinkronkan Supplier jika ada
+  if (data.suppliers && data.suppliers.length > 0) {
+    var sheetSup = getOrCreateSheet(ss, SHEET_SUPPLIER);
+    var headersSup = ["ID Supplier", "Nama", "Alamat", "Telepon", "Email"];
+    sheetSup.clearContents();
+    sheetSup.appendRow(headersSup);
+    var rowsSup = data.suppliers.map(function(s) {
+      return [s.id, s.nama, s.alamat || "", s.telepon || "", s.email || ""];
+    });
+    if (rowsSup.length > 0) {
+      sheetSup.getRange(2, 1, rowsSup.length, headersSup.length).setValues(rowsSup);
+    }
+  }
+
+  // Sinkronkan Pelanggan jika ada
+  if (data.customers && data.customers.length > 0) {
+    var sheetPel = getOrCreateSheet(ss, SHEET_PELANGGAN);
+    var headersPel = ["ID Pelanggan", "Nama", "Telepon", "Alamat"];
+    sheetPel.clearContents();
+    sheetPel.appendRow(headersPel);
+    var rowsPel = data.customers.map(function(c) {
+      return [c.id, c.nama, c.telepon || "", c.alamat || ""];
+    });
+    if (rowsPel.length > 0) {
+      sheetPel.getRange(2, 1, rowsPel.length, headersPel.length).setValues(rowsPel);
+    }
+  }
+
+  // Sinkronkan Pengguna jika ada
+  if (data.users && data.users.length > 0) {
+    var sheetUser = getOrCreateSheet(ss, SHEET_PENGGUNA);
+    var headersUser = ["Username", "Password", "Nama", "Role (Admin/Kasir)"];
+    sheetUser.clearContents();
+    sheetUser.appendRow(headersUser);
+    var rowsUser = data.users.map(function(u) {
+      return [u.username, u.password || "", u.nama, u.role || "Kasir"];
+    });
+    if (rowsUser.length > 0) {
+      sheetUser.getRange(2, 1, rowsUser.length, headersUser.length).setValues(rowsUser);
+    }
+  }
 }
 
 /**

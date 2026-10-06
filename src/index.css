@@ -1,1 +1,62 @@
 @import "tailwindcss";
+
+@layer utilities {
+  /* Print Optimization Styles */
+  @media print {
+    /* Hide everything by default when printing */
+    body {
+      background: #ffffff !important;
+      color: #000000 !important;
+      font-size: 12pt;
+    }
+
+    header,
+    aside,
+    nav,
+    .no-print {
+      display: none !important;
+    }
+
+    /* Print financial report document */
+    .printable-report-area {
+      display: block !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+      color: black !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
+
+    .printable-report-area table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      font-size: 9pt !important;
+    }
+
+    .printable-report-area th,
+    .printable-report-area td {
+      border: 1px solid #cbd5e1 !important;
+      padding: 6px 8px !important;
+    }
+
+    .printable-report-area th {
+      background-color: #f1f5f9 !important;
+      color: #0f172a !important;
+      font-weight: bold !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .page-break-inside-avoid {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 15mm 12mm 15mm 12mm;
+    }
+  }
+}

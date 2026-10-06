@@ -877,6 +877,44 @@ function backupSpreadsheetToDrive() {
     return { success: false, message: "Gagal backup data: " + err.message };
   }
 }
+
+/**
+ * PEMBERSIHAN DATA TRANSAKSI (CLEAR TRANSACTION DATA)
+ * Mengosongkan data baris di sheet Penjualan dan/atau Pembelian
+ * Menyisakan baris header (Baris 1) tetap utuh
+ * @param {string} target 'penjualan' | 'pembelian' | 'semua'
+ */
+function clearTransactionData(target) {
+  try {
+    var ss = getSpreadsheet();
+    var msg = [];
+
+    if (target === 'penjualan' || target === 'semua') {
+      var sheetSales = ss.getSheetByName(SHEET_PENJUALAN);
+      if (sheetSales && sheetSales.getLastRow() > 1) {
+        var numRows = sheetSales.getLastRow() - 1;
+        sheetSales.deleteRows(2, numRows);
+        msg.push("Riwayat Penjualan (" + numRows + " baris) berhasil dikosongkan");
+      }
+    }
+
+    if (target === 'pembelian' || target === 'semua') {
+      var sheetPurchases = ss.getSheetByName(SHEET_PEMBELIAN);
+      if (sheetPurchases && sheetPurchases.getLastRow() > 1) {
+        var pRows = sheetPurchases.getLastRow() - 1;
+        sheetPurchases.deleteRows(2, pRows);
+        msg.push("Riwayat Pembelian (" + pRows + " baris) berhasil dikosongkan");
+      }
+    }
+
+    return {
+      success: true,
+      message: msg.length > 0 ? msg.join(". ") : "Data transaksi sudah kosong."
+    };
+  } catch (err) {
+    return { success: false, message: "Gagal membersihkan data transaksi: " + err.message };
+  }
+}
 `,
   },
   {
@@ -1369,19 +1407,23 @@ function backupSpreadsheetToDrive() {
     name: 'Laporan.html',
     type: 'html',
     description: 'Modul Laporan Penjualan, Laba Kotor, Valuasi Stok, dan Export.',
-    content: `<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <h3 class="fw-bold mb-0">Laporan Keuangan & Penjualan</h3>
+    content: `<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print">
+  <div>
+    <h3 class="fw-bold mb-0"><i class="bi bi-file-earmark-bar-graph text-primary"></i> Laporan Keuangan & Analisa Laba Rugi</h3>
+    <small class="text-muted">Perhitungan resmi laba kotor, HPP, omset, dan valuasi aset persediaan.</small>
+  </div>
   <div class="d-flex gap-2">
     <button class="btn btn-outline-success btn-sm" onclick="exportReportToExcel()">
-      <i class="bi bi-file-earmark-spreadsheet"></i> Export Excel
+      <i class="bi bi-file-earmark-spreadsheet"></i> Ekspor CSV/Excel
     </button>
-    <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
-      <i class="bi bi-printer"></i> Cetak Laporan
+    <button class="btn btn-primary btn-sm shadow-sm" onclick="printFormalFinancialReport()">
+      <i class="bi bi-printer-fill"></i> Cetak Laporan Resmi
     </button>
   </div>
 </div>
 
-<div class="card border-0 shadow-sm mb-4">
+<!-- Filter Tanggal (Excluded from print) -->
+<div class="card border-0 shadow-sm mb-4 no-print">
   <div class="card-body">
     <div class="row g-2 align-items-end">
       <div class="col-md-4">
@@ -1401,7 +1443,8 @@ function backupSpreadsheetToDrive() {
   </div>
 </div>
 
-<div class="row g-3 mb-4">
+<!-- Highlight Keuangan di Layar -->
+<div class="row g-3 mb-4 no-print">
   <div class="col-md-4">
     <div class="card border-0 shadow-sm bg-primary text-white">
       <div class="card-body">
@@ -1423,6 +1466,88 @@ function backupSpreadsheetToDrive() {
       <div class="card-body">
         <div class="small opacity-75">ESTIMASI LABA KOTOR</div>
         <div class="fs-4 fw-bold mt-1" id="reportLabaKotor">Rp 0</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AREA DOKUMEN CETAK RESMI (FORMAL PRINTABLE FINANCIAL REPORT) -->
+<div id="printableFinancialDoc" class="card border-0 shadow-sm p-4 p-md-5 bg-white">
+  <!-- KOP SURAT RESMI -->
+  <div class="d-flex justify-content-between align-items-center pb-3 border-bottom border-dark border-3">
+    <div>
+      <h2 class="fw-bolder mb-0 text-uppercase" style="letter-spacing: -0.5px;">TOKO BERKAH JAYA</h2>
+      <p class="text-muted small mb-0 fw-semibold">SISTEM KASIR & PENGELOLAAN INVENTORI TOKO TERPADU</p>
+      <small class="text-secondary">Jl. Pemuda No. 45, Kebayoran Baru, Jakarta Selatan • Telp: 0812-3456-7890</small>
+    </div>
+    <div class="text-end d-none d-sm-block">
+      <span class="badge bg-dark px-3 py-2 text-uppercase">DOKUMEN RESMI TOKO</span>
+    </div>
+  </div>
+  <div style="border-bottom: 1px solid #000; margin-top: 2px; margin-bottom: 20px;"></div>
+
+  <!-- JUDUL DOKUMEN & METADATA -->
+  <div class="text-center my-3">
+    <h4 class="fw-bold text-uppercase text-decoration-underline mb-1">LAPORAN KEUANGAN & REKAPITULASI LABA RUGI</h4>
+    <div class="small text-muted" id="printReportPeriode">Periode: Semua Data Transaksi Tercatat</div>
+  </div>
+
+  <div class="bg-light p-2 rounded mb-3 small">
+    <div class="row g-2">
+      <div class="col-6 col-sm-3"><strong>No. Dokumen:</strong> <span id="printDocNumber">RPT-FIN-001</span></div>
+      <div class="col-6 col-sm-3"><strong>Tanggal Cetak:</strong> <span id="printDocDate">-</span></div>
+      <div class="col-6 col-sm-3"><strong>Petugas:</strong> <span id="printDocUser">Administrator</span></div>
+      <div class="col-6 col-sm-3"><strong>Status:</strong> Terverifikasi Spreadsheet</div>
+    </div>
+  </div>
+
+  <!-- TABEL RINCIAN -->
+  <div class="table-responsive my-3">
+    <table class="table table-bordered table-sm align-middle text-nowrap" id="tablePrintReportDetail" style="font-size: 11px;">
+      <thead class="table-dark text-center">
+        <tr>
+          <th>No</th>
+          <th>No Transaksi</th>
+          <th>Tanggal</th>
+          <th>Item Produk</th>
+          <th>Qty</th>
+          <th>Harga Jual</th>
+          <th>HPP (Modal)</th>
+          <th>Subtotal Omset</th>
+          <th>Laba Kotor</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyReportDetail">
+        <tr><td colspan="9" class="text-center py-3 text-muted">Memuat data transaksi keuangan...</td></tr>
+      </tbody>
+      <tfoot class="table-light fw-bold">
+        <tr>
+          <td colspan="4" class="text-end">TOTAL KESELURUHAN:</td>
+          <td class="text-center" id="printTotalQty">0</td>
+          <td colspan="2" class="text-end" id="printTotalHPP">HPP: Rp 0</td>
+          <td class="text-end text-primary" id="printGrandOmset">Rp 0</td>
+          <td class="text-end text-success" id="printGrandLaba">Rp 0</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- LEMBAR TANDA TANGAN / PENGESAHAN -->
+  <div class="mt-4 pt-3 border-top">
+    <div class="d-flex justify-content-between text-center small">
+      <div style="width: 200px;">
+        <div class="text-muted">Dibuat Oleh,</div>
+        <div class="fw-bold mt-1">Bagian Keuangan / Kasir</div>
+        <div style="height: 55px;" class="d-flex align-items-end justify-content-center text-muted fst-italic">[Tanda Tangan]</div>
+        <hr class="my-1">
+        <div class="fw-bold" id="signKasirName">Dewi Rahayu</div>
+      </div>
+      <div style="width: 200px;">
+        <div class="text-muted">Jakarta, <span id="signDate"></span></div>
+        <div class="fw-bold mt-1">Mengetahui, Pemilik Toko</div>
+        <div style="height: 55px;" class="d-flex align-items-end justify-content-center text-muted fst-italic">[Tanda Tangan]</div>
+        <hr class="my-1">
+        <div class="fw-bold">Pimpinan / Manajemen</div>
       </div>
     </div>
   </div>
@@ -1467,14 +1592,46 @@ function backupSpreadsheetToDrive() {
     border-radius: 10px;
   }
 
-  /* Thermal Receipt Printing Styling */
+  /* Thermal Receipt Printing & Official Financial Report Print Styling */
   @media print {
-    body * {
-      visibility: hidden;
+    /* Sembunyikan elemen navigasi dan tombol saat print */
+    .no-print,
+    header,
+    nav,
+    aside,
+    #sidebarMenu,
+    .navbar,
+    .btn {
+      display: none !important;
     }
-    #printReceiptArea, #printReceiptArea * {
-      visibility: visible;
+
+    body {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+      font-size: 10pt;
     }
+
+    #appContainer,
+    #mainContent {
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+    }
+
+    #printableFinancialDoc {
+      display: block !important;
+      box-shadow: none !important;
+      border: none !important;
+      padding: 0 !important;
+      width: 100% !important;
+    }
+
+    #printableFinancialDoc table th,
+    #printableFinancialDoc table td {
+      border: 1px solid #94a3b8 !important;
+      padding: 4px 6px !important;
+    }
+
     #printReceiptArea {
       position: absolute;
       left: 0;
@@ -1484,6 +1641,11 @@ function backupSpreadsheetToDrive() {
       font-size: 11px;
       font-family: 'Courier New', Courier, monospace;
       color: #000;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 15mm 10mm 15mm 10mm;
     }
   }
 </style>

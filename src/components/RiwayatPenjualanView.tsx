@@ -1,18 +1,26 @@
 import React, { useState } from 'react';
-import { ReceiptText, Search, Printer, Calendar, Eye, X, ArrowUpDown } from 'lucide-react';
-import { Penjualan, StoreSettings } from '../types';
+import { ReceiptText, Search, Printer, Calendar, Eye, X, ArrowUpDown, Trash2, AlertTriangle } from 'lucide-react';
+import { Penjualan, StoreSettings, Pengguna } from '../types';
 import { formatRupiah, formatTanggal } from '../utils/helpers';
 
 interface RiwayatPenjualanViewProps {
   sales: Penjualan[];
   settings: StoreSettings;
+  currentUser?: Pengguna | null;
+  onClearSales?: () => void;
 }
 
-export const RiwayatPenjualanView: React.FC<RiwayatPenjualanViewProps> = ({ sales, settings }) => {
+export const RiwayatPenjualanView: React.FC<RiwayatPenjualanViewProps> = ({
+  sales,
+  settings,
+  currentUser,
+  onClearSales,
+}) => {
   const [search, setSearch] = useState('');
   const [filterDateStart, setFilterDateStart] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const [selectedSale, setSelectedSale] = useState<Penjualan | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const filteredSales = sales.filter((s) => {
     const q = search.toLowerCase();
@@ -31,6 +39,13 @@ export const RiwayatPenjualanView: React.FC<RiwayatPenjualanViewProps> = ({ sale
 
   const totalOmsetFiltered = filteredSales.reduce((acc, s) => acc + s.totalBayar, 0);
 
+  const handleConfirmClear = () => {
+    if (onClearSales) {
+      onClearSales();
+    }
+    setShowClearConfirm(false);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -45,9 +60,27 @@ export const RiwayatPenjualanView: React.FC<RiwayatPenjualanViewProps> = ({ sale
           </p>
         </div>
 
-        <div className="bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl text-right">
-          <div className="text-[10px] text-emerald-700 uppercase font-semibold">Total Omset Terpilih</div>
-          <div className="text-lg font-extrabold text-emerald-800">{formatRupiah(totalOmsetFiltered)}</div>
+        <div className="flex items-center gap-2.5">
+          {onClearSales && currentUser?.role === 'Admin' && (
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              disabled={sales.length === 0}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                sales.length > 0
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+              }`}
+              title="Kosongkan seluruh data transaksi penjualan"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>Clear Data Penjualan</span>
+            </button>
+          )}
+
+          <div className="bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl text-right">
+            <div className="text-[10px] text-emerald-700 uppercase font-semibold">Total Omset Terpilih</div>
+            <div className="text-lg font-extrabold text-emerald-800">{formatRupiah(totalOmsetFiltered)}</div>
+          </div>
         </div>
       </div>
 
@@ -250,6 +283,50 @@ export const RiwayatPenjualanView: React.FC<RiwayatPenjualanViewProps> = ({ sale
               >
                 Tutup
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal: Clear Riwayat Penjualan */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-200 animate-in fade-in zoom-in duration-150">
+            <div className="p-5 bg-rose-600 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-200" />
+                <h3 className="font-bold text-base">Hapus Riwayat Penjualan?</h3>
+              </div>
+              <button onClick={() => setShowClearConfirm(false)} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-700 leading-relaxed">
+                Anda akan menghapus <strong>seluruh {sales.length} transaksi penjualan</strong> di database spreadsheet. Semua catatan struk dan rekapitulasi kasir akan dikosongkan ke Rp 0.
+              </p>
+
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-[11px] text-rose-800">
+                <strong>Aman:</strong> Master produk, data harga, stok barang gudang, dan supplier tidak akan terhapus.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmClear}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20"
+                >
+                  Ya, Kosongkan Riwayat Penjualan
+                </button>
+              </div>
             </div>
           </div>
         </div>

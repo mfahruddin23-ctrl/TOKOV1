@@ -45,6 +45,9 @@ import {
   loadCurrentUser,
   saveCurrentUser,
   resetAllDataToDefault,
+  clearStoredSales,
+  clearStoredPurchases,
+  clearStoredAllTransactions,
 } from './utils/storage';
 
 export default function App() {
@@ -247,6 +250,26 @@ export default function App() {
     }
   };
 
+  // Clear transaction data handlers
+  const handleClearSales = () => {
+    setSales([]);
+    clearStoredSales();
+    showToast('Data riwayat transaksi penjualan berhasil dikosongkan!');
+  };
+
+  const handleClearPurchases = () => {
+    setPurchases([]);
+    clearStoredPurchases();
+    showToast('Data riwayat pembelian supplier berhasil dikosongkan!');
+  };
+
+  const handleClearAllTransactions = () => {
+    setSales([]);
+    setPurchases([]);
+    clearStoredAllTransactions();
+    showToast('Seluruh data transaksi (Penjualan & Pembelian) berhasil dikosongkan!');
+  };
+
   // Low stock counter
   const lowStockCount = products.filter((p) => p.stok <= p.minStok).length;
 
@@ -306,7 +329,12 @@ export default function App() {
           )}
 
           {activeTab === 'riwayat' && (
-            <RiwayatPenjualanView sales={sales} settings={settings} />
+            <RiwayatPenjualanView
+              sales={sales}
+              settings={settings}
+              currentUser={currentUser}
+              onClearSales={handleClearSales}
+            />
           )}
 
           {activeTab === 'pembelian' && (
@@ -338,7 +366,13 @@ export default function App() {
           )}
 
           {activeTab === 'laporan' && (
-            <LaporanView products={products} sales={sales} purchases={purchases} />
+            <LaporanView
+              products={products}
+              sales={sales}
+              purchases={purchases}
+              settings={settings}
+              currentUser={currentUser}
+            />
           )}
 
           {activeTab === 'gas' && <GasCodeStudioView />}
@@ -346,10 +380,15 @@ export default function App() {
           {activeTab === 'pengaturan' && (
             <SettingsView
               settings={settings}
+              salesCount={sales.length}
+              purchasesCount={purchases.length}
               onSaveSettings={handleSaveSettings}
               onResetData={handleResetData}
               onExportAllData={handleExportAllData}
               onImportAllData={handleImportAllData}
+              onClearSales={handleClearSales}
+              onClearPurchases={handleClearPurchases}
+              onClearAllTransactions={handleClearAllTransactions}
             />
           )}
         </main>

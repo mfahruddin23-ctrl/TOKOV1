@@ -160,6 +160,31 @@ export function saveCurrentUser(user: Pengguna | null) {
   }
 }
 
+export function clearStoredSales() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PENJUALAN, JSON.stringify([]));
+  } catch (e) {
+    console.error('Failed to clear sales:', e);
+  }
+}
+
+export function clearStoredPurchases() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PEMBELIAN, JSON.stringify([]));
+  } catch (e) {
+    console.error('Failed to clear purchases:', e);
+  }
+}
+
+export function clearStoredAllTransactions() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PENJUALAN, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.PEMBELIAN, JSON.stringify([]));
+  } catch (e) {
+    console.error('Failed to clear transactions:', e);
+  }
+}
+
 export function resetAllDataToDefault() {
   localStorage.removeItem(STORAGE_KEYS.PRODUK);
   localStorage.removeItem(STORAGE_KEYS.PENJUALAN);

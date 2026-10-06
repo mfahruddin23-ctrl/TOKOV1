@@ -10,26 +10,45 @@ import {
   Receipt,
   Link,
   CheckCircle,
+  Trash2,
+  AlertTriangle,
+  ReceiptText,
+  Boxes,
+  ShieldAlert,
+  X,
 } from 'lucide-react';
 import { StoreSettings } from '../types';
 
 interface SettingsViewProps {
   settings: StoreSettings;
+  salesCount: number;
+  purchasesCount: number;
   onSaveSettings: (settings: StoreSettings) => void;
   onResetData: () => void;
   onExportAllData: () => void;
   onImportAllData: (jsonData: string) => void;
+  onClearSales: () => void;
+  onClearPurchases: () => void;
+  onClearAllTransactions: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
+  salesCount,
+  purchasesCount,
   onSaveSettings,
   onResetData,
   onExportAllData,
   onImportAllData,
+  onClearSales,
+  onClearPurchases,
+  onClearAllTransactions,
 }) => {
   const [form, setForm] = useState<StoreSettings>({ ...settings });
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Clear modal confirmation state
+  const [clearTarget, setClearTarget] = useState<'sales' | 'purchases' | 'all' | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +70,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     reader.readAsText(file);
   };
 
+  const handleExecuteClear = () => {
+    if (clearTarget === 'sales') {
+      onClearSales();
+    } else if (clearTarget === 'purchases') {
+      onClearPurchases();
+    } else if (clearTarget === 'all') {
+      onClearAllTransactions();
+    }
+    setClearTarget(null);
+  };
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
@@ -60,7 +90,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <span>Pengaturan Profil Toko & Sistem</span>
         </h2>
         <p className="text-xs text-slate-500">
-          Ubah identitas toko, tarif PPN, format struk, dan backup data spreadsheet.
+          Ubah identitas toko, tarif PPN, format struk, backup data, dan manajemen pembersihan data transaksi.
         </p>
       </div>
 
@@ -219,6 +249,137 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </form>
 
+      {/* ========================================================================= */}
+      {/* MENU CLEAR DATA TRANSAKSI (PEMBERSIHAN DATA TRANSAKSI) */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-3xl border border-rose-200 p-6 md:p-8 space-y-5 shadow-xs">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-rose-700 font-bold text-base">
+              <Trash2 className="w-5 h-5 text-rose-600" />
+              <span>Menu Pembersihan Data Transaksi (Clear Data)</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Gunakan menu ini untuk mengosongkan riwayat transaksi kasir atau pembelian barang masuk.
+            </p>
+          </div>
+          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">
+            Akses Admin
+          </span>
+        </div>
+
+        {/* Information Callout */}
+        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <span className="font-bold">Keamanan Data Master Terjamin:</span>
+            <p className="text-[11px] text-amber-800">
+              Pembersihan data transaksi hanya akan menghapus catatan riwayat transaksi (Sheet Penjualan / Pembelian).
+              <strong> Master Produk, Stok Barang, Supplier, Pelanggan, dan Akun Pengguna TIDAK AKAN TERHAPUS.</strong>
+            </p>
+          </div>
+        </div>
+
+        {/* Action Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+          {/* 1. Clear Sales */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-slate-700 mb-1">
+                <span className="font-bold text-xs flex items-center gap-1.5">
+                  <ReceiptText className="w-4 h-4 text-blue-600" />
+                  <span>Riwayat Penjualan</span>
+                </span>
+                <span className="font-mono text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                  {salesCount} TRX
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Mengosongkan seluruh riwayat struk penjualan kasir di sheet Penjualan.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={salesCount === 0}
+              onClick={() => setClearTarget('sales')}
+              className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                salesCount > 0
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+              }`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Kosongkan Penjualan</span>
+            </button>
+          </div>
+
+          {/* 2. Clear Purchases */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-slate-700 mb-1">
+                <span className="font-bold text-xs flex items-center gap-1.5">
+                  <Boxes className="w-4 h-4 text-indigo-600" />
+                  <span>Riwayat Pembelian</span>
+                </span>
+                <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                  {purchasesCount} Nota
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Mengosongkan seluruh riwayat nota pembelian supplier di sheet Pembelian.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={purchasesCount === 0}
+              onClick={() => setClearTarget('purchases')}
+              className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                purchasesCount > 0
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+              }`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Kosongkan Pembelian</span>
+            </button>
+          </div>
+
+          {/* 3. Clear All Transactions */}
+          <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-rose-900 mb-1">
+                <span className="font-bold text-xs flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-rose-600" />
+                  <span>Reset Total Transaksi</span>
+                </span>
+                <span className="font-mono text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded">
+                  {salesCount + purchasesCount} Total
+                </span>
+              </div>
+              <p className="text-[11px] text-rose-800/80">
+                Mengosongkan semua data transaksi penjualan & pembelian sekaligus ke nol (0).
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={salesCount === 0 && purchasesCount === 0}
+              onClick={() => setClearTarget('all')}
+              className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                salesCount > 0 || purchasesCount > 0
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Kosongkan Semua Transaksi</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Backup and Restore Cards */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 space-y-4 shadow-xs">
         <h3 className="font-bold text-sm text-slate-900">Cadangkan & Pulihkan Data Toko</h3>
@@ -247,13 +408,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 onResetData();
               }
             }}
-            className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2 transition ml-auto"
+            className="px-4 py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2 transition ml-auto"
           >
-            <RotateCcw className="w-4 h-4 text-rose-600" />
+            <RotateCcw className="w-4 h-4 text-slate-500" />
             <span>Reset Data Contoh Bawaan</span>
           </button>
         </div>
       </div>
+
+      {/* Confirmation Modal for Clear Transaction */}
+      {clearTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-200 animate-in fade-in zoom-in duration-150">
+            <div className="p-5 bg-rose-600 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-200" />
+                <h3 className="font-bold text-base">Konfirmasi Pembersihan Data</h3>
+              </div>
+              <button onClick={() => setClearTarget(null)} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-700 leading-relaxed">
+                {clearTarget === 'sales' && (
+                  <>
+                    Anda akan menghapus <strong>seluruh {salesCount} data riwayat transaksi penjualan</strong> kasir. Total omset hari ini dan riwayat transaksi akan kembali ke <strong>Rp 0</strong>.
+                  </>
+                )}
+                {clearTarget === 'purchases' && (
+                  <>
+                    Anda akan menghapus <strong>seluruh {purchasesCount} data riwayat pembelian</strong> dari supplier.
+                  </>
+                )}
+                {clearTarget === 'all' && (
+                  <>
+                    Anda akan menghapus <strong>seluruh data penjualan ({salesCount} trx)</strong> dan <strong>pembelian ({purchasesCount} nota)</strong> secara permanen.
+                  </>
+                )}
+              </p>
+
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-[11px] text-rose-800">
+                <strong>Catatan:</strong> Master produk, harga, dan stok barang Anda tetap aman dan tidak akan dihapus.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setClearTarget(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteClear}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20"
+                >
+                  Ya, Bersihkan Data Transaksi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
